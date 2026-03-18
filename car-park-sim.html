@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Car Park Management Sim</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#0a0a1e;font-family:'Segoe UI',Arial,sans-serif;color:#aaccee}
+canvas{display:block;position:fixed;top:0;left:0;z-index:0}
+
+/* ── Right Panel ── */
+#panel{
+  position:fixed;top:0;right:0;width:320px;height:100vh;
+  background:rgba(10,12,30,0.92);border-left:1px solid #1a2a44;
+  z-index:20;overflow-y:auto;padding:16px;
+  backdrop-filter:blur(10px);
+}
+#panel h2{color:#44aaff;font-size:16px;letter-spacing:2px;margin-bottom:2px}
+#panel .sub{color:#556688;font-size:11px;letter-spacing:1px;margin-bottom:12px}
+.section-title{color:#44aaff;font-size:11px;font-weight:700;letter-spacing:2px;margin:14px 0 6px;text-transform:uppercase}
+.sep{border:none;border-top:1px solid #1a2a44;margin:10px 0}
+
+/* Metrics */
+.metric{display:flex;justify-content:space-between;padding:2px 0;font-size:12px}
+.metric .val{color:#fff;font-weight:600;font-family:Consolas,monospace}
+.metric.highlight .val{font-size:14px}
+
+/* Thread status */
+.thread-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;font-family:Consolas,monospace}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.active{background:#44bb88} .dot.waiting{background:#ffd644} .dot.crashed{background:#ff4444}
+
+/* Sliders */
+.ctrl-row{display:flex;align-items:center;gap:8px;margin:4px 0}
+.ctrl-row label{width:80px;font-size:11px;color:#8899aa;flex-shrink:0}
+.ctrl-row input[type=range]{flex:1;accent-color:#44aaff}
+.ctrl-row .cv{width:55px;text-align:right;font-size:11px;color:#fff;font-family:Consolas,monospace}
+
+/* Buttons */
+.btn-row{display:flex;gap:8px;justify-content:center;margin:10px 0}
+.btn{padding:8px 20px;border:none;border-radius:16px;font-weight:700;font-size:12px;cursor:pointer;color:#fff;letter-spacing:1px}
+.btn-start{background:#44bb88} .btn-stop{background:#ff5555} .btn-reset{background:#4488ff}
+.btn:disabled{opacity:0.4;cursor:default}
+
+/* Log */
+#log{width:100%;height:90px;background:#0e0e22;border:1px solid #1a2a44;color:#6699bb;
+  font-family:Consolas,monospace;font-size:10px;resize:none;padding:6px;border-radius:4px}
+
+/* 3D Stats overlay */
+#stats-3d{
+  position:fixed;top:12px;left:12px;z-index:20;
+  background:rgba(0,0,0,0.6);border:1px solid rgba(0,140,255,0.25);
+  border-radius:6px;padding:10px 16px;backdrop-filter:blur(6px);
+  font-size:12px;min-width:180px;pointer-events:none;
+}
+#stats-3d h3{color:#44aaff;font-size:12px;letter-spacing:2px;margin-bottom:4px}
+.s3-row{display:flex;justify-content:space-between;padding:1px 0}
+.s3-val{color:#fff;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- 3D overlay stats -->
+<div id="stats-3d">
+  <h3>CAR PARK SIM</h3>
+  <div class="s3-row"><span>Occupied</span><span class="s3-val" id="s3-occ">0 / 0</span></div>
+  <div class="s3-row"><span>Occupancy</span><span class="s3-val" id="s3-pct">0%</span></div>
+</div>
+
+<!-- Right panel -->
+<div id="panel">
+  <h2>Car Park Management Sim</h2>
+  <div class="sub">Producer-Consumer Threading Simulation</div>
+  <hr class="sep">
+
+  <div class="section-title">Dashboard</div>
+  <div class="metric highlight"><span>Occupancy</span><span class="val" id="m-occ">0%</span></div>
+  <div class="metric"><span>Throughput</span><span class="val" id="m-tp">0.00 /s</span></div>
+  <div class="metric"><span>Avg Wait</span><span class="val" id="m-wait">0 ms</span></div>
+  <hr class="sep">
+  <div class="metric"><span>Produced</span><span class="val" id="m-prod">0</span></div>
+  <div class="metric"><span>Consumed</span><span class="val" id="m-cons">0</span></div>
+  <div class="metric"><span>Elapsed</span><span class="val" id="m-elapsed">0.0 s</span></div>
+  <hr class="sep">
+
+  <div class="section-title">Thread Status</div>
+  <div id="thread-box"></div>
+  <hr class="sep">
+
+  <div class="section-title">Controls</div>
+  <div class="ctrl-row"><label>Capacity</label><input type="range" id="sl-cap" min="1" max="18" value="10"><span class="cv" id="cv-cap">10</span></div>
+  <div class="ctrl-row"><label>Prod Rate</label><input type="range" id="sl-prod" min="200" max="5000" value="1500" step="100"><span class="cv" id="cv-prod">1500ms</span></div>
+  <div class="ctrl-row"><label>Cons Rate</label><input type="range" id="sl-cons" min="200" max="5000" value="800" step="100"><span class="cv" id="cv-cons">800ms</span></div>
+  <div class="ctrl-row"><label>Proc Time</label><input type="range" id="sl-proc" min="100" max="5000" value="1000" step="100"><span class="cv" id="cv-proc">1000ms</span></div>
+  <hr class="sep">
+
+  <div class="btn-row">
+    <button class="btn btn-start" id="btn-start" onclick="startSim()">Start</button>
+    <button class="btn btn-stop" id="btn-stop" onclick="stopSim()" disabled>Stop</button>
+    <button class="btn btn-reset" id="btn-reset" onclick="resetSim()">Reset</button>
+  </div>
+  <hr class="sep">
+
+  <div class="section-title">Event Log</div>
+  <textarea id="log" readonly></textarea>
+</div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ============================================================
+//  THREE.JS  —  3D NIGHTTIME PARKING LOT
+// ============================================================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a1e);
+scene.fog = new THREE.FogExp2(0x0a0a1e, 0.008);
+
+const camera = new THREE.PerspectiveCamera(50, (window.innerWidth-320)/window.innerHeight, 0.1, 500);
+camera.position.set(30, 25, 40);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth - 320, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+// ── Lighting ──
+scene.add(new THREE.AmbientLight(0x223344, 0.5));
+const moonLight = new THREE.DirectionalLight(0x6688aa, 0.6);
+moonLight.position.set(-30, 50, -20);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.set(2048, 2048);
+moonLight.shadow.camera.near=0.5; moonLight.shadow.camera.far=120;
+moonLight.shadow.camera.left=-50; moonLight.shadow.camera.right=50;
+moonLight.shadow.camera.top=50; moonLight.shadow.camera.bottom=-50;
+moonLight.shadow.bias=-0.001;
+scene.add(moonLight);
+scene.add(new THREE.HemisphereLight(0x223355, 0x111122, 0.3));
+
+// ── Street Lights ──
+function createStreetLight(x, z) {
+  const pm=new THREE.MeshStandardMaterial({color:0x444444,metalness:0.8,roughness:0.3});
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.08,5,8),pm);
+  pole.position.set(x,2.5,z); pole.castShadow=true; scene.add(pole);
+  const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.5,6),pm);
+  arm.rotation.z=Math.PI/2; arm.position.set(x+0.75,5,z); scene.add(arm);
+  const housing=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.15,0.4),
+    new THREE.MeshStandardMaterial({color:0x333333,metalness:0.7,roughness:0.4}));
+  housing.position.set(x+1.2,4.95,z); scene.add(housing);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.12,12,12),
+    new THREE.MeshStandardMaterial({color:0xffdd88,emissive:0xffaa44,emissiveIntensity:3}));
+  bulb.position.set(x+1.2,4.85,z); scene.add(bulb);
+  const pl=new THREE.PointLight(0xffaa55,1.8,20,2);
+  pl.position.set(x+1.2,4.8,z); pl.castShadow=true; pl.shadow.mapSize.set(512,512); scene.add(pl);
+  const glow=new THREE.Mesh(new THREE.CircleGeometry(4,32),
+    new THREE.MeshBasicMaterial({color:0xffaa44,transparent:true,opacity:0.06}));
+  glow.rotation.x=-Math.PI/2; glow.position.set(x+1.2,0.02,z); scene.add(glow);
+}
+createStreetLight(-14,-9); createStreetLight(12,-9);
+createStreetLight(-14,9);  createStreetLight(12,9); createStreetLight(-2,-18);
+
+// ── Ground & Road ──
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(150,150),
+  new THREE.MeshStandardMaterial({color:0x0d1a0d,roughness:0.95}));
+ground.rotation.x=-Math.PI/2; ground.position.y=-0.02; ground.receiveShadow=true; scene.add(ground);
+
+const lotMesh=new THREE.Mesh(new THREE.PlaneGeometry(34,26),
+  new THREE.MeshStandardMaterial({color:0x222230,roughness:0.75}));
+lotMesh.rotation.x=-Math.PI/2; lotMesh.position.set(0,0.01,0); lotMesh.receiveShadow=true; scene.add(lotMesh);
+
+const road=new THREE.Mesh(new THREE.PlaneGeometry(7,70),
+  new THREE.MeshStandardMaterial({color:0x1e1e28,roughness:0.7}));
+road.rotation.x=-Math.PI/2; road.position.set(0,0.01,-35); road.receiveShadow=true; scene.add(road);
+
+for(let i=0;i<18;i++){
+  const d=new THREE.Mesh(new THREE.PlaneGeometry(0.15,1.8),
+    new THREE.MeshStandardMaterial({color:0xccaa00,emissive:0x443300,emissiveIntensity:0.3}));
+  d.rotation.x=-Math.PI/2; d.position.set(0,0.025,-65+i*4); scene.add(d);
+}
+for(let side of[-3.2,3.2]){
+  const l=new THREE.Mesh(new THREE.PlaneGeometry(0.1,70),
+    new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x222222}));
+  l.rotation.x=-Math.PI/2; l.position.set(side,0.025,-35); scene.add(l);
+}
+
+// ── Parking Spots ──
+const SLOT_POSITIONS = [];
+function createSpotLines(x,z,flipZ){
+  const lm=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x111111});
+  const lg=new THREE.PlaneGeometry(0.07,4.8);
+  [x-1.35, x+1.35].forEach(sx=>{
+    const l=new THREE.Mesh(lg.clone(),lm); l.rotation.x=-Math.PI/2; l.position.set(sx,0.025,z); scene.add(l);
+  });
+  const bg=new THREE.PlaneGeometry(2.7,0.07);
+  const b=new THREE.Mesh(bg,lm); b.rotation.x=-Math.PI/2; b.position.set(x,0.025,z+(flipZ?-2.4:2.4)); scene.add(b);
+}
+for(let i=-4;i<=4;i++){ SLOT_POSITIONS.push({x:i*3,z:-6,rotY:0}); createSpotLines(i*3,-6,false); }
+for(let i=-4;i<=4;i++){ SLOT_POSITIONS.push({x:i*3,z:6,rotY:Math.PI}); createSpotLines(i*3,6,true); }
+
+// ── Curbs ──
+function addCurb(x,y,z,w,h,d){
+  const c=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:0x555555,roughness:0.6}));
+  c.position.set(x,y,z); c.castShadow=true; c.receiveShadow=true; scene.add(c);
+}
+addCurb(-17,0.15,0,0.3,0.3,26); addCurb(17,0.15,0,0.3,0.3,26); addCurb(0,0.15,13,34,0.3,0.3);
+
+// ── Building ──
+const bldg=new THREE.Mesh(new THREE.BoxGeometry(24,10,7),new THREE.MeshStandardMaterial({color:0x2a3344,roughness:0.85}));
+bldg.position.set(0,5,20); bldg.castShadow=true; bldg.receiveShadow=true; scene.add(bldg);
+scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(25,0.3,8),new THREE.MeshStandardMaterial({color:0x1a2233,roughness:0.7})),{position:new THREE.Vector3(0,10.15,20)}));
+for(let row=0;row<3;row++){for(let col=0;col<8;col++){
+  const lit=Math.sin(col*3.7+row*2.3)>-0.3;
+  const w=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.4),new THREE.MeshStandardMaterial({
+    color:lit?0xffdd88:0x1a2233,emissive:lit?0xaa7722:0x000000,emissiveIntensity:lit?0.7:0}));
+  w.position.set(-10.5+col*3,2.5+row*2.8,16.49); scene.add(w);
+}}
+scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(6,1.2,0.15),
+  new THREE.MeshStandardMaterial({color:0x1133aa,emissive:0x0022aa,emissiveIntensity:0.5})),{position:new THREE.Vector3(0,10.8,16.4)}));
+
+// ── Trees ──
+function createTree(x,z){
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.25,3,8),new THREE.MeshStandardMaterial({color:0x3d2b1a,roughness:0.9}));
+  trunk.position.set(x,1.5,z); trunk.castShadow=true; scene.add(trunk);
+  [0x1a4a1a,0x1d5a1d,0x206020].forEach((c,i)=>{
+    const f=new THREE.Mesh(new THREE.ConeGeometry(1.8-i*0.4,2-i*0.3,8),new THREE.MeshStandardMaterial({color:c,roughness:0.85}));
+    f.position.set(x,3.5+i*1.2,z); f.castShadow=true; scene.add(f);
+  });
+}
+createTree(-22,12);createTree(22,12);createTree(-24,-6);createTree(24,-6);createTree(-22,-18);createTree(22,-18);
+
+// ── Stars & Moon ──
+const sGeo=new THREE.BufferGeometry();const sP=[];
+for(let i=0;i<800;i++)sP.push((Math.random()-0.5)*300,30+Math.random()*70,(Math.random()-0.5)*300);
+sGeo.setAttribute('position',new THREE.Float32BufferAttribute(sP,3));
+scene.add(new THREE.Points(sGeo,new THREE.PointsMaterial({color:0xccddff,size:0.2,sizeAttenuation:true})));
+scene.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(3,32,32),new THREE.MeshBasicMaterial({color:0xddeeff})),{position:new THREE.Vector3(-40,50,-60)}));
+
+// ============================================================
+//  CAR BUILDER
+// ============================================================
+const CAR_COLORS=[0x2244aa,0xee1133,0x33aa44,0xdd8800,0x5522aa,0x22aaaa,0xaa2266,0x44bb88];
+
+function buildCar(bodyColor){
+  const g=new THREE.Group();
+  const bm=new THREE.MeshStandardMaterial({color:bodyColor,metalness:0.7,roughness:0.25});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.6,4.4),bm);
+  body.position.y=0.55;body.castShadow=true;body.receiveShadow=true;g.add(body);
+  const fender=new THREE.Mesh(new THREE.BoxGeometry(2.3,0.15,4.0),bm);
+  fender.position.y=0.88;fender.castShadow=true;g.add(fender);
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.85,0.55,2.2),
+    new THREE.MeshStandardMaterial({color:0x88ccff,metalness:0.95,roughness:0.05,transparent:true,opacity:0.4}));
+  cab.position.set(0,1.22,-0.15);g.add(cab);
+  const rf=new THREE.Mesh(new THREE.BoxGeometry(1.95,0.08,2.0),bm);
+  rf.position.set(0,1.52,-0.15);rf.castShadow=true;g.add(rf);
+  const wg=new THREE.CylinderGeometry(0.3,0.3,0.2,16);
+  const wm=new THREE.MeshStandardMaterial({color:0x111111,roughness:0.8});
+  const rg=new THREE.CylinderGeometry(0.16,0.16,0.22,8);
+  const rm=new THREE.MeshStandardMaterial({color:0xaaaaaa,metalness:0.9,roughness:0.1});
+  [[-1.15,0.3,1.4],[1.15,0.3,1.4],[-1.15,0.3,-1.4],[1.15,0.3,-1.4]].forEach(([wx,wy,wz])=>{
+    g.add(Object.assign(new THREE.Mesh(wg,wm),{rotation:{x:0,y:0,z:Math.PI/2},position:new THREE.Vector3(wx,wy,wz)}));
+    g.add(Object.assign(new THREE.Mesh(rg,rm),{rotation:{x:0,y:0,z:Math.PI/2},position:new THREE.Vector3(wx,wy,wz)}));
+  });
+  // Headlights
+  const hlm=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffcc,emissiveIntensity:0.3});
+  const hlg=new THREE.SphereGeometry(0.13,8,8);
+  g.add(Object.assign(new THREE.Mesh(hlg,hlm),{position:new THREE.Vector3(-0.75,0.55,2.25)}));
+  g.add(Object.assign(new THREE.Mesh(hlg,hlm),{position:new THREE.Vector3(0.75,0.55,2.25)}));
+  // Tail lights
+  const tlm=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:0.5});
+  const tlg=new THREE.SphereGeometry(0.1,8,8);
+  g.add(Object.assign(new THREE.Mesh(tlg,tlm),{position:new THREE.Vector3(-0.85,0.55,-2.25)}));
+  g.add(Object.assign(new THREE.Mesh(tlg,tlm),{position:new THREE.Vector3(0.85,0.55,-2.25)}));
+  return g;
+}
+
+// ── Dynamic slot management ──
+const slotCars = {};
+
+function addCarToSlot(idx, colorIdx){
+  if(slotCars[idx] || idx>=SLOT_POSITIONS.length) return;
+  const s=SLOT_POSITIONS[idx];
+  const car=buildCar(CAR_COLORS[colorIdx%CAR_COLORS.length]);
+  car.position.set(s.x,0,s.z); car.rotation.y=s.rotY;
+  car.scale.set(0.01,0.01,0.01); car.userData={targetScale:1,removing:false};
+  scene.add(car); slotCars[idx]=car;
+}
+function removeCarFromSlot(idx){
+  const car=slotCars[idx]; if(!car) return;
+  car.userData.removing=true;
+}
+function clearAllCars(){
+  for(const k in slotCars){scene.remove(slotCars[k]);delete slotCars[k];}
+}
+
+// ============================================================
+//  RENDER LOOP
+// ============================================================
+const clock=new THREE.Clock();
+function render(){
+  requestAnimationFrame(render);
+  const t=clock.getElapsedTime();
+  // Orbit camera
+  camera.position.x=Math.cos(t*0.12)*35;
+  camera.position.z=Math.sin(t*0.12)*35;
+  camera.position.y=20+Math.sin(t*0.08)*3;
+  camera.lookAt(0,1,0);
+  // Animate cars
+  for(const k in slotCars){
+    const c=slotCars[k];
+    if(c.userData.removing){
+      const s=c.scale.x*0.85;c.scale.set(s,s,s);
+      if(s<0.02){scene.remove(c);delete slotCars[k];}
+    } else if(c.scale.x<c.userData.targetScale-0.01){
+      const s=c.scale.x+(c.userData.targetScale-c.scale.x)*0.12;
+      c.scale.set(s,s,s);
+    } else { c.scale.set(1,1,1); }
+  }
+  renderer.render(scene,camera);
+}
+render();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=(window.innerWidth-320)/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth-320,window.innerHeight);
+});
+
+// ============================================================
+//  PRODUCER-CONSUMER ENGINE (Simulated Threading)
+//  Uses setInterval-based "threads" with mutex/semaphore logic
+// ============================================================
+
+class Semaphore {
+  constructor(permits){ this._permits=permits; this._queue=[]; }
+  get permits(){ return this._permits; }
+  async acquire(){
+    if(this._permits>0){ this._permits--; return; }
+    return new Promise(resolve=>this._queue.push(resolve));
+  }
+  release(){
+    if(this._queue.length>0){ this._queue.shift()(); }
+    else { this._permits++; }
+  }
+  setPermits(n){
+    const diff=n-this._permits;
+    if(diff>0){for(let i=0;i<diff;i++) this.release();}
+    else { this._permits=Math.max(0,n); }
+  }
+}
+
+class Mutex {
+  constructor(){ this._locked=false; this._queue=[]; }
+  async lock(){
+    if(!this._locked){ this._locked=true; return; }
+    return new Promise(resolve=>this._queue.push(resolve));
+  }
+  unlock(){
+    if(this._queue.length>0){ this._queue.shift()(); }
+    else { this._locked=false; }
+  }
+}
+
+// ── Parking Lot (Buffer) ──
+let capacity = 10;
+let buffer = [];
+let emptySlots, occupiedSlots, mutex;
+
+// ── Metrics ──
+let totalProduced=0, totalConsumed=0, totalWaitMs=0, startTime=0;
+
+// ── Thread state ──
+const NUM_PRODUCERS=3, NUM_CONSUMERS=2;
+let prodStatus=[], consStatus=[];
+let prodTimers=[], consTimers=[];
+let running=false;
+let prodDelay=1500, consDelay=800, procTime=1000;
+let carIdCounter=0;
+
+// ── Slider bindings ──
+const slCap=document.getElementById('sl-cap'), cvCap=document.getElementById('cv-cap');
+const slProd=document.getElementById('sl-prod'), cvProd=document.getElementById('cv-prod');
+const slCons=document.getElementById('sl-cons'), cvCons=document.getElementById('cv-cons');
+const slProc=document.getElementById('sl-proc'), cvProc=document.getElementById('cv-proc');
+
+slCap.oninput=()=>{ const v=+slCap.value; cvCap.textContent=v; if(running) resizeCapacity(v); };
+slProd.oninput=()=>{ prodDelay=+slProd.value; cvProd.textContent=prodDelay+'ms'; };
+slCons.oninput=()=>{ consDelay=+slCons.value; cvCons.textContent=consDelay+'ms'; };
+slProc.oninput=()=>{ procTime=+slProc.value; cvProc.textContent=procTime+'ms'; };
+
+function resizeCapacity(newCap){
+  const diff=newCap-capacity;
+  capacity=newCap;
+  if(diff>0) emptySlots.setPermits(emptySlots.permits+diff);
+}
+
+// ── Producer "thread" ──
+async function producerLoop(id){
+  while(running){
+    prodStatus[id]='ACTIVE';
+    await sleep(prodDelay);
+    if(!running) break;
+
+    prodStatus[id]='WAITING';
+    await emptySlots.acquire();
+    if(!running) break;
+
+    await mutex.lock();
+    const car={id:++carIdCounter, createdAt:Date.now()};
+    buffer.push(car);
+    totalProduced++;
+
+    // Add to 3D: find empty slot
+    const slotIdx=findEmptySlot();
+    if(slotIdx>=0) addCarToSlot(slotIdx, car.id%CAR_COLORS.length);
+
+    mutex.unlock();
+    occupiedSlots.release();
+    prodStatus[id]='ACTIVE';
+    appendLog('Producer-'+(id+1)+' parked Car #'+car.id);
+  }
+  prodStatus[id]='ACTIVE';
+}
+
+// ── Consumer "thread" ──
+async function consumerLoop(id){
+  while(running){
+    consStatus[id]='WAITING';
+    await occupiedSlots.acquire();
+    if(!running) break;
+
+    await mutex.lock();
+    const car=buffer.shift();
+
+    // Remove from 3D: find occupied slot
+    const slotIdx=findOccupiedSlot();
+    if(slotIdx>=0) removeCarFromSlot(slotIdx);
+
+    mutex.unlock();
+    emptySlots.release();
+
+    consStatus[id]='ACTIVE';
+    await sleep(procTime);
+    if(!running) break;
+
+    const waitMs=Date.now()-car.createdAt;
+    totalConsumed++; totalWaitMs+=waitMs;
+    appendLog('Guide-'+(id+1)+' released Car #'+car.id+' (wait '+waitMs+'ms)');
+
+    await sleep(consDelay);
+  }
+  consStatus[id]='ACTIVE';
+}
+
+// Helpers
+function findEmptySlot(){
+  for(let i=0;i<capacity&&i<SLOT_POSITIONS.length;i++){
+    if(!slotCars[i]) return i;
+  }
+  return -1;
+}
+function findOccupiedSlot(){
+  for(let i=capacity-1;i>=0;i--){
+    if(slotCars[i]) return i;
+  }
+  return -1;
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function appendLog(msg){
+  const log=document.getElementById('log');
+  const t=new Date(); const ts=t.toTimeString().slice(0,8);
+  log.value+='['+ts+'] '+msg+'\n';
+  log.scrollTop=log.scrollHeight;
+}
+
+// ── Start / Stop / Reset ──
+function startSim(){
+  if(running) return;
+  capacity=+slCap.value; prodDelay=+slProd.value;
+  consDelay=+slCons.value; procTime=+slProc.value;
+
+  buffer=[]; totalProduced=0; totalConsumed=0; totalWaitMs=0;
+  carIdCounter=0; startTime=Date.now();
+  clearAllCars();
+
+  emptySlots=new Semaphore(capacity);
+  occupiedSlots=new Semaphore(0);
+  mutex=new Mutex();
+
+  prodStatus=Array(NUM_PRODUCERS).fill('ACTIVE');
+  consStatus=Array(NUM_CONSUMERS).fill('ACTIVE');
+  running=true;
+
+  for(let i=0;i<NUM_PRODUCERS;i++) producerLoop(i);
+  for(let i=0;i<NUM_CONSUMERS;i++) consumerLoop(i);
+
+  document.getElementById('btn-start').disabled=true;
+  document.getElementById('btn-stop').disabled=false;
+  appendLog('STARTED  '+NUM_PRODUCERS+'P / '+NUM_CONSUMERS+'C  cap='+capacity);
+}
+
+function stopSim(){
+  running=false;
+  document.getElementById('btn-start').disabled=false;
+  document.getElementById('btn-stop').disabled=true;
+  // Release blocked threads
+  for(let i=0;i<20;i++){emptySlots.release();occupiedSlots.release();}
+  appendLog('STOPPED');
+}
+
+function resetSim(){
+  stopSim();
+  buffer=[]; totalProduced=0; totalConsumed=0; totalWaitMs=0;
+  clearAllCars();
+  document.getElementById('log').value='';
+  appendLog('RESET');
+  updateUI();
+}
+
+// ── UI Refresh ──
+function updateUI(){
+  const occ=buffer.length;
+  const pct=capacity>0?Math.round(occ/capacity*100):0;
+  const elapsed=(Date.now()-startTime)/1000||0;
+  const tp=elapsed>0?totalConsumed/elapsed:0;
+  const avgW=totalConsumed>0?totalWaitMs/totalConsumed:0;
+
+  document.getElementById('m-occ').textContent=pct+'%';
+  document.getElementById('m-occ').style.color=pct>=90?'#ff4444':pct>=60?'#ffaa33':'#44bb88';
+  document.getElementById('m-tp').textContent=tp.toFixed(2)+' /s';
+  document.getElementById('m-wait').textContent=Math.round(avgW)+' ms';
+  document.getElementById('m-prod').textContent=totalProduced;
+  document.getElementById('m-cons').textContent=totalConsumed;
+  document.getElementById('m-elapsed').textContent=elapsed.toFixed(1)+' s';
+
+  document.getElementById('s3-occ').textContent=occ+' / '+capacity;
+  document.getElementById('s3-pct').textContent=pct+'%';
+
+  // Thread status
+  const box=document.getElementById('thread-box');
+  box.innerHTML='';
+  for(let i=0;i<NUM_PRODUCERS;i++){
+    const s=prodStatus[i]||'ACTIVE';
+    box.innerHTML+='<div class="thread-row"><span class="dot '+s.toLowerCase()+'"></span>Producer-'+(i+1)+'  '+s+'</div>';
+  }
+  for(let i=0;i<NUM_CONSUMERS;i++){
+    const s=consStatus[i]||'ACTIVE';
+    box.innerHTML+='<div class="thread-row"><span class="dot '+s.toLowerCase()+'"></span>Guide-'+(i+1)+'  '+s+'</div>';
+  }
+}
+setInterval(updateUI, 200);
+</script>
+</body>
+</html>
