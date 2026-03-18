@@ -64,9 +64,9 @@ public class CarParkSimApp extends Application {
         Color.web("#991166"), Color.web("#228855"),
     };
 
-    // ── Canvas ──────────────────────────────────────────────
+    // ── Canvas (dynamic size) ─────────────────────────────
     private Canvas canvas;
-    private static final double CW = 760, CH = 750;
+    private double CW = 900, CH = 800;
 
     // ── Simulation ──────────────────────────────────────────
     private ParkingLot parkingLot;
@@ -146,26 +146,44 @@ public class CarParkSimApp extends Application {
     @Override
     public void start(Stage stage) {
         stage.setTitle("Car Park Management Sim");
-        CX = CW / 2; CY = CH * 0.36;
 
         for (int i = 0; i < slotOwner.length; i++) slotOwner[i] = -1;
         computeSlotPositions(DEF_CAP);
 
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:#080818;");
+
         canvas = new Canvas(CW, CH);
-        StackPane cp = new StackPane(canvas);
-        cp.setStyle("-fx-background-color:#080818;");
-        root.setCenter(cp);
+        // Pane lets canvas resize freely (no layout constraints)
+        Pane canvasPane = new Pane(canvas);
+        canvasPane.setStyle("-fx-background-color:#080818;");
+        root.setCenter(canvasPane);
         root.setRight(buildPanel());
 
-        Scene scene = new Scene(root, 1100, 750);
+        // Auto-resize canvas to fill available space
+        canvasPane.widthProperty().addListener((o, a, b) -> resizeCanvas(b.doubleValue(), canvasPane.getHeight()));
+        canvasPane.heightProperty().addListener((o, a, b) -> resizeCanvas(canvasPane.getWidth(), b.doubleValue()));
+
+        Scene scene = new Scene(root);
         stage.setScene(scene);
+        stage.setMaximized(true); // start maximized
         stage.setMinWidth(950); stage.setMinHeight(650);
         stage.setOnCloseRequest(e -> stopSim());
         stage.show();
 
+        // Initial size after show
+        resizeCanvas(canvasPane.getWidth(), canvasPane.getHeight());
         startTimer();
+    }
+
+    /** Resize the canvas and recalculate isometric center. */
+    private void resizeCanvas(double w, double h) {
+        if (w < 10 || h < 10) return;
+        CW = w; CH = h;
+        canvas.setWidth(CW);
+        canvas.setHeight(CH);
+        CX = CW / 2;
+        CY = CH * 0.36;
     }
 
     @Override public void stop() { stopSim(); }
@@ -497,47 +515,204 @@ public class CarParkSimApp extends Application {
         gc.setFill(side); gc.fillPolygon(sx, sy, 4);
     }
 
-    // ── Isometric car ──
+    // ── Modern isometric car ──
     private void drawIsoCar(GraphicsContext gc, double wx, double wy, double wz,
                             double scale, int ci, boolean headlights) {
-        double bw = 1.5 * scale, bh = 0.45 * scale, bd = 2.6 * scale;
-        Color body = CAR_C[ci % CAR_C.length], dark = CAR_D[ci % CAR_D.length];
+        Color body = CAR_C[ci % CAR_C.length];
+        Color dark = CAR_D[ci % CAR_D.length];
+        Color highlight = body.interpolate(Color.WHITE, 0.3);
+        Color shadow = dark.interpolate(Color.BLACK, 0.3);
 
-        // Ground shadow
-        gc.setFill(Color.web("#000000", 0.2 * scale));
+        double s = scale;
+        // Key dimensions in world space
+        double bw = 1.6 * s;  // half-width
+        double bh = 0.48 * s; // body height
+        double bd = 2.8 * s;  // half-depth (length)
+
+        // ── Ground shadow (soft oval) ──
+        gc.setFill(Color.web("#000000", 0.22 * s));
         double shx = isoX(wx, 0, wz), shy = isoY(wx, 0, wz);
-        gc.fillOval(shx - 22*scale, shy - 7*scale, 44*scale, 14*scale);
+        gc.fillOval(shx - 28*s, shy - 9*s, 56*s, 18*s);
 
-        // Body
-        drawIsoBox(gc, wx, wy+0.12, wz, bw, bh, bd, body, dark, dark.darker());
-        // Cabin
-        drawIsoBox(gc, wx, wy+0.12+bh, wz-bd*0.04, bw*0.78, bh*0.65, bd*0.48,
-                   Color.web("#88ccff", 0.3), Color.web("#6699cc", 0.25), Color.web("#5588bb", 0.2));
-        // Roof
-        drawIsoBox(gc, wx, wy+0.12+bh+bh*0.65, wz-bd*0.04, bw*0.8, bh*0.1, bd*0.46, body, dark, dark.darker());
-
-        // Headlights
-        double hlY = wy + 0.32;
-        if (headlights) {
-            gc.setFill(Color.web("#ffffcc", 0.9));
-            gc.fillOval(isoX(wx-bw*0.3, hlY, wz+bd/2)-2.5, isoY(wx-bw*0.3, hlY, wz+bd/2)-2, 5*scale, 4*scale);
-            gc.fillOval(isoX(wx+bw*0.3, hlY, wz+bd/2)-2.5, isoY(wx+bw*0.3, hlY, wz+bd/2)-2, 5*scale, 4*scale);
-            // Light beam
-            gc.setFill(Color.web("#ffffaa", 0.05 * scale));
-            double bx = isoX(wx, hlY, wz+bd/2+2), by = isoY(wx, 0, wz+bd/2+2);
-            gc.fillOval(bx-20*scale, by-6*scale, 40*scale, 12*scale);
+        // ── Wheel arches / wheels (draw before body so body overlaps them) ──
+        double wheelR = 5.5 * s;
+        double[][] wheelW = {
+            {wx - bw*0.38, wy+0.04, wz + bd*0.3},  // front-left
+            {wx + bw*0.38, wy+0.04, wz + bd*0.3},  // front-right
+            {wx - bw*0.38, wy+0.04, wz - bd*0.3},  // rear-left
+            {wx + bw*0.38, wy+0.04, wz - bd*0.3},  // rear-right
+        };
+        for (double[] wp : wheelW) {
+            double px = isoX(wp[0], wp[1], wp[2]);
+            double py = isoY(wp[0], wp[1], wp[2]);
+            // Tire
+            gc.setFill(Color.web("#1a1a1a"));
+            gc.fillOval(px - wheelR, py - wheelR*0.65, wheelR*2, wheelR*1.3);
+            // Rim
+            gc.setFill(Color.web("#888888", 0.9));
+            gc.fillOval(px - wheelR*0.55, py - wheelR*0.35, wheelR*1.1, wheelR*0.7);
+            // Hub
+            gc.setFill(Color.web("#444444"));
+            gc.fillOval(px - wheelR*0.2, py - wheelR*0.12, wheelR*0.4, wheelR*0.25);
         }
 
-        // Tail lights
-        gc.setFill(Color.web("#ff2200", 0.75));
-        gc.fillOval(isoX(wx-bw*0.3, hlY, wz-bd/2)-1.5, isoY(wx-bw*0.3, hlY, wz-bd/2)-1.5, 4*scale, 3*scale);
-        gc.fillOval(isoX(wx+bw*0.3, hlY, wz-bd/2)-1.5, isoY(wx+bw*0.3, hlY, wz-bd/2)-1.5, 4*scale, 3*scale);
+        // ── Lower body (main shape with slight taper at front) ──
+        // Front bumper (rounded — draw as a slightly narrower box in front)
+        drawIsoBox(gc, wx, wy+0.08, wz+bd*0.42, bw*0.95, bh*0.45, bd*0.18,
+                   body, dark, shadow);
+        // Main body
+        drawIsoBox(gc, wx, wy+0.08, wz, bw, bh*0.55, bd*0.84,
+                   body, dark, shadow);
+        // Rear bumper
+        drawIsoBox(gc, wx, wy+0.08, wz-bd*0.42, bw*0.95, bh*0.45, bd*0.18,
+                   body, dark, shadow);
 
-        // Wheels
-        gc.setFill(Color.web("#0a0a0a"));
-        double[][] wp = {{wx-bw/2, wy+0.06, wz+bd*0.28}, {wx+bw/2, wy+0.06, wz+bd*0.28},
-                         {wx-bw/2, wy+0.06, wz-bd*0.28}, {wx+bw/2, wy+0.06, wz-bd*0.28}};
-        for (double[] p : wp) gc.fillOval(isoX(p[0],p[1],p[2])-3*scale, isoY(p[0],p[1],p[2])-2*scale, 6*scale, 4*scale);
+        // ── Body top highlight strip (metallic sheen) ──
+        drawIsoBox(gc, wx, wy+0.08+bh*0.55, wz, bw*1.01, bh*0.04, bd*0.85,
+                   highlight.deriveColor(0,1,1,0.3), body, dark);
+
+        // ── Hood (sloped front section) ──
+        double hoodY = wy + 0.08 + bh*0.55;
+        // Hood surface (tapered polygon)
+        double[] hx = {
+            isoX(wx-bw*0.48, hoodY+bh*0.06, wz+bd*0.15),
+            isoX(wx+bw*0.48, hoodY+bh*0.06, wz+bd*0.15),
+            isoX(wx+bw*0.44, hoodY+bh*0.15, wz+bd*0.42),
+            isoX(wx-bw*0.44, hoodY+bh*0.15, wz+bd*0.42),
+        };
+        double[] hy = {
+            isoY(wx-bw*0.48, hoodY+bh*0.06, wz+bd*0.15),
+            isoY(wx+bw*0.48, hoodY+bh*0.06, wz+bd*0.15),
+            isoY(wx+bw*0.44, hoodY+bh*0.15, wz+bd*0.42),
+            isoY(wx-bw*0.44, hoodY+bh*0.15, wz+bd*0.42),
+        };
+        gc.setFill(body.interpolate(Color.WHITE, 0.08));
+        gc.fillPolygon(hx, hy, 4);
+
+        // ── Windshield (sloped glass — front) ──
+        double cabBase = hoodY + bh*0.04;
+        double cabTop  = cabBase + bh*0.7;
+        // Front windshield (trapezoid angled back)
+        double[] wsx = {
+            isoX(wx-bw*0.42, cabBase, wz+bd*0.15),
+            isoX(wx+bw*0.42, cabBase, wz+bd*0.15),
+            isoX(wx+bw*0.36, cabTop, wz+bd*0.02),
+            isoX(wx-bw*0.36, cabTop, wz+bd*0.02),
+        };
+        double[] wsy = {
+            isoY(wx-bw*0.42, cabBase, wz+bd*0.15),
+            isoY(wx+bw*0.42, cabBase, wz+bd*0.15),
+            isoY(wx+bw*0.36, cabTop, wz+bd*0.02),
+            isoY(wx-bw*0.36, cabTop, wz+bd*0.02),
+        };
+        gc.setFill(Color.web("#66aadd", 0.45));
+        gc.fillPolygon(wsx, wsy, 4);
+        // Windshield frame
+        gc.setStroke(Color.web("#334455", 0.6));
+        gc.setLineWidth(0.8 * s);
+        gc.strokePolygon(wsx, wsy, 4);
+
+        // ── Cabin / roof box ──
+        drawIsoBox(gc, wx, cabBase, wz-bd*0.08, bw*0.76, bh*0.7, bd*0.38,
+                   body.interpolate(Color.WHITE, 0.05),
+                   Color.web("#66aadd", 0.3),   // side glass
+                   Color.web("#5599cc", 0.25));  // other side glass
+
+        // ── Roof ──
+        drawIsoBox(gc, wx, cabTop, wz-bd*0.06, bw*0.72, bh*0.06, bd*0.34,
+                   body, dark.interpolate(body, 0.3), dark);
+
+        // ── Rear window (small glass) ──
+        double[] rwx = {
+            isoX(wx-bw*0.34, cabBase+bh*0.1, wz-bd*0.28),
+            isoX(wx+bw*0.34, cabBase+bh*0.1, wz-bd*0.28),
+            isoX(wx+bw*0.32, cabTop-bh*0.05, wz-bd*0.25),
+            isoX(wx-bw*0.32, cabTop-bh*0.05, wz-bd*0.25),
+        };
+        double[] rwy = {
+            isoY(wx-bw*0.34, cabBase+bh*0.1, wz-bd*0.28),
+            isoY(wx+bw*0.34, cabBase+bh*0.1, wz-bd*0.28),
+            isoY(wx+bw*0.32, cabTop-bh*0.05, wz-bd*0.25),
+            isoY(wx-bw*0.32, cabTop-bh*0.05, wz-bd*0.25),
+        };
+        gc.setFill(Color.web("#5599bb", 0.35));
+        gc.fillPolygon(rwx, rwy, 4);
+
+        // ── Trunk (rear slope) ──
+        double[] trx = {
+            isoX(wx-bw*0.46, hoodY+bh*0.04, wz-bd*0.15),
+            isoX(wx+bw*0.46, hoodY+bh*0.04, wz-bd*0.15),
+            isoX(wx+bw*0.44, hoodY+bh*0.12, wz-bd*0.38),
+            isoX(wx-bw*0.44, hoodY+bh*0.12, wz-bd*0.38),
+        };
+        double[] tr_y = {
+            isoY(wx-bw*0.46, hoodY+bh*0.04, wz-bd*0.15),
+            isoY(wx+bw*0.46, hoodY+bh*0.04, wz-bd*0.15),
+            isoY(wx+bw*0.44, hoodY+bh*0.12, wz-bd*0.38),
+            isoY(wx-bw*0.44, hoodY+bh*0.12, wz-bd*0.38),
+        };
+        gc.setFill(body.interpolate(Color.WHITE, 0.04));
+        gc.fillPolygon(trx, tr_y, 4);
+
+        // ── Side mirror stubs ──
+        gc.setFill(dark);
+        double mY = cabBase + bh*0.25;
+        gc.fillOval(isoX(wx-bw*0.52, mY, wz+bd*0.1)-2*s, isoY(wx-bw*0.52, mY, wz+bd*0.1)-1.5*s, 4*s, 3*s);
+        gc.fillOval(isoX(wx+bw*0.52, mY, wz+bd*0.1)-2*s, isoY(wx+bw*0.52, mY, wz+bd*0.1)-1.5*s, 4*s, 3*s);
+
+        // ── Headlights (modern LED strip style) ──
+        double hlY = wy + 0.35;
+        if (headlights) {
+            // Left headlight
+            gc.setFill(Color.web("#ffffff", 0.95));
+            gc.fillOval(isoX(wx-bw*0.35, hlY, wz+bd/2)-3*s, isoY(wx-bw*0.35, hlY, wz+bd/2)-2*s, 6*s, 4*s);
+            // Right headlight
+            gc.fillOval(isoX(wx+bw*0.35, hlY, wz+bd/2)-3*s, isoY(wx+bw*0.35, hlY, wz+bd/2)-2*s, 6*s, 4*s);
+            // DRL strip (thin line between headlights)
+            gc.setStroke(Color.web("#ffffff", 0.6));
+            gc.setLineWidth(1.2*s);
+            gc.strokeLine(
+                isoX(wx-bw*0.25, hlY, wz+bd*0.48), isoY(wx-bw*0.25, hlY, wz+bd*0.48),
+                isoX(wx+bw*0.25, hlY, wz+bd*0.48), isoY(wx+bw*0.25, hlY, wz+bd*0.48));
+            // Light beam on ground
+            gc.setFill(Color.web("#ffffaa", 0.06 * s));
+            double bx = isoX(wx, 0, wz+bd/2+2.5), by = isoY(wx, 0, wz+bd/2+2.5);
+            gc.fillOval(bx-25*s, by-8*s, 50*s, 16*s);
+        } else {
+            // Parked: dimmer headlights
+            gc.setFill(Color.web("#aabbcc", 0.4));
+            gc.fillOval(isoX(wx-bw*0.35, hlY, wz+bd/2)-2*s, isoY(wx-bw*0.35, hlY, wz+bd/2)-1.5*s, 4*s, 3*s);
+            gc.fillOval(isoX(wx+bw*0.35, hlY, wz+bd/2)-2*s, isoY(wx+bw*0.35, hlY, wz+bd/2)-1.5*s, 4*s, 3*s);
+        }
+
+        // ── Tail lights (LED bar style) ──
+        gc.setFill(Color.web("#ff1111", 0.85));
+        double tlY = hlY;
+        gc.fillOval(isoX(wx-bw*0.35, tlY, wz-bd/2)-2.5*s, isoY(wx-bw*0.35, tlY, wz-bd/2)-1.5*s, 5*s, 3*s);
+        gc.fillOval(isoX(wx+bw*0.35, tlY, wz-bd/2)-2.5*s, isoY(wx+bw*0.35, tlY, wz-bd/2)-1.5*s, 5*s, 3*s);
+        // Tail light strip
+        gc.setStroke(Color.web("#ff2200", 0.5));
+        gc.setLineWidth(1*s);
+        gc.strokeLine(
+            isoX(wx-bw*0.25, tlY, wz-bd*0.48), isoY(wx-bw*0.25, tlY, wz-bd*0.48),
+            isoX(wx+bw*0.25, tlY, wz-bd*0.48), isoY(wx+bw*0.25, tlY, wz-bd*0.48));
+
+        // ── Front grille (dark strip) ──
+        gc.setFill(Color.web("#111122", 0.7));
+        double gy = wy + 0.2;
+        double[] grx = {
+            isoX(wx-bw*0.38, gy, wz+bd*0.48),
+            isoX(wx+bw*0.38, gy, wz+bd*0.48),
+            isoX(wx+bw*0.38, gy+bh*0.3, wz+bd*0.48),
+            isoX(wx-bw*0.38, gy+bh*0.3, wz+bd*0.48),
+        };
+        double[] gry = {
+            isoY(wx-bw*0.38, gy, wz+bd*0.48),
+            isoY(wx+bw*0.38, gy, wz+bd*0.48),
+            isoY(wx+bw*0.38, gy+bh*0.3, wz+bd*0.48),
+            isoY(wx-bw*0.38, gy+bh*0.3, wz+bd*0.48),
+        };
+        gc.fillPolygon(grx, gry, 4);
     }
 
     // ── Parking lines ──
