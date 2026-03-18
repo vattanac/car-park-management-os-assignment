@@ -34,6 +34,7 @@ public class Car {
     private final String colour;
     private final Instant createdAt;
     private volatile Instant parkedAt;
+    private volatile Instant departedAt;
 
     /**
      * Constructs a new Car with an auto-generated ID, random licence plate,
@@ -74,6 +75,11 @@ public class Car {
         return parkedAt;
     }
 
+    /** @return the instant when this car departed, or {@code null} if still parked */
+    public Instant getDepartedAt() {
+        return departedAt;
+    }
+
     // ── Setters ─────────────────────────────────────────────
 
     /**
@@ -89,6 +95,19 @@ public class Car {
         this.parkedAt = parkedAt;
     }
 
+    /**
+     * Records the moment this car departed (was guided out of the lot).
+     *
+     * @param departedAt the departure timestamp; must not be {@code null}
+     * @throws IllegalArgumentException if {@code departedAt} is null
+     */
+    public void setDepartedAt(Instant departedAt) {
+        if (departedAt == null) {
+            throw new IllegalArgumentException("departedAt must not be null");
+        }
+        this.departedAt = departedAt;
+    }
+
     // ── Utility ─────────────────────────────────────────────
 
     /**
@@ -101,6 +120,18 @@ public class Car {
             return -1;
         }
         return parkedAt.toEpochMilli() - createdAt.toEpochMilli();
+    }
+
+    /**
+     * Calculates how long the car was parked (parking duration) in milliseconds.
+     *
+     * @return parking duration in ms, or {@code -1} if still parked or never parked
+     */
+    public long getParkingDurationMs() {
+        if (parkedAt == null || departedAt == null) {
+            return -1;
+        }
+        return departedAt.toEpochMilli() - parkedAt.toEpochMilli();
     }
 
     @Override

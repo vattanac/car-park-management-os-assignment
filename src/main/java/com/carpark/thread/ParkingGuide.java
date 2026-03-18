@@ -80,9 +80,12 @@ public class ParkingGuide implements Runnable {
                 status = Status.ACTIVE;
                 Thread.sleep(processingTimeMs);
 
-                // Record metrics
+                // Record departure time and metrics
+                car.setDepartedAt(java.time.Instant.now());
                 long waitTime = car.getWaitTimeMs();
+                long parkDuration = car.getParkingDurationMs();
                 metrics.recordConsumed(waitTime);
+                metrics.recordParkingDuration(parkDuration);
 
                 // Delay before looking for the next car
                 Thread.sleep(consumptionDelayMs);

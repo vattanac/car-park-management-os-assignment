@@ -132,7 +132,7 @@ public class CarParkSimApp extends Application {
     private int prevOccupied = 0;
 
     // ── UI ───────────────────────────────────────────────────
-    private Label lblOcc, lblTp, lblWt, lblProd, lblCons, lblElapsed;
+    private Label lblOcc, lblTp, lblWt, lblParkDur, lblProd, lblCons, lblElapsed;
     private VBox threadBox;
     private Slider slCap, slProdR, slConsR, slProcT;
     private Button btnStart, btnStop, btnReset;
@@ -233,6 +233,7 @@ public class CarParkSimApp extends Application {
             ac.queueZ = ac.wz;
 
             animCars.add(ac);
+            log("Car #" + ac.id + " → driving to slot P" + (slot + 1));
             // Immediately start driving in
             ac.state = CarState.DRIVING_IN;
             ac.tx = slotPos[slot][0];
@@ -252,6 +253,7 @@ public class CarParkSimApp extends Application {
                 }
             }
             if (toRemove == null) break;
+            log("Car #" + toRemove.id + " ← departing from P" + (toRemove.slotIdx + 1));
             toRemove.state = CarState.DRIVING_OUT;
             toRemove.tx = ROAD_X;
             toRemove.tz = ROAD_Z_START + 2;
@@ -802,6 +804,7 @@ public class CarParkSimApp extends Application {
                     lblOcc.setTextFill(pct>=90?Color.web("#FF4444"):pct>=60?Color.web("#FFAA33"):Color.web("#44BB88"));
                     lblTp.setText(String.format("Throughput: %.2f /s", metrics.getThroughput()));
                     lblWt.setText(String.format("Avg Wait: %.0f ms", metrics.getAverageWaitTimeMs()));
+                    lblParkDur.setText(String.format("Avg Park Duration: %.0f ms", metrics.getAverageParkingDurationMs()));
                     lblProd.setText("Produced: "+metrics.getTotalProduced());
                     lblCons.setText("Consumed: "+metrics.getTotalConsumed());
                     lblElapsed.setText(String.format("Elapsed: %.1f s", metrics.getElapsedSeconds()));
@@ -827,6 +830,7 @@ public class CarParkSimApp extends Application {
         Label title=mkL("Car Park Management Sim",15,true,"#44AAFF");
         Label sub=mkL("Producer-Consumer Simulation",10,false,"#556688");
         lblOcc=mL("Occupancy: 0%"); lblTp=mL("Throughput: 0.00 /s"); lblWt=mL("Avg Wait: 0 ms");
+        lblParkDur=mL("Avg Park Duration: 0 ms");
         lblProd=mL("Produced: 0"); lblCons=mL("Consumed: 0"); lblElapsed=mL("Elapsed: 0.0 s");
         threadBox=new VBox(3); ScrollPane ts=new ScrollPane(threadBox); ts.setPrefHeight(100);
         ts.setFitToWidth(true); ts.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
@@ -874,7 +878,7 @@ public class CarParkSimApp extends Application {
         logArea.setStyle("-fx-control-inner-background:#0e0e22;-fx-text-fill:#6699bb;");
 
         VBox p=new VBox(6, title, sub, sep(),
-            sec("DASHBOARD"), lblOcc, lblTp, lblWt, sep(), lblProd, lblCons, lblElapsed, sep(),
+            sec("DASHBOARD"), lblOcc, lblTp, lblWt, lblParkDur, sep(), lblProd, lblCons, lblElapsed, sep(),
             sec("THREAD STATUS"), ts, sep(), sec("CONTROLS"), sg, sep(), bb, sep(),
             sec("EVENT LOG"), logArea);
         p.setPadding(new Insets(14)); p.setPrefWidth(300);
@@ -931,11 +935,19 @@ public class CarParkSimApp extends Application {
     private Slider sl(double a,double b,double v){Slider s=new Slider(a,b,v);s.setPrefWidth(120);s.setBlockIncrement(1);return s;}
     private Button btn(String t,String c){Button b=new Button(t);b.setStyle("-fx-background-color:"+c+";-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:11;-fx-padding:7 18;-fx-background-radius:14;-fx-cursor:hand;");return b;}
     private Separator sep(){Separator s=new Separator();s.setStyle("-fx-background-color:#1a2a44;");return s;}
-    private HBox tRow(String n,String st){
-        String c=st.equals("ACTIVE")?"#44BB88":st.equals("WAITING")?"#FFD644":"#FF4444";
-        Label d=new Label("\u25CF");d.setStyle("-fx-text-fill:"+c+";-fx-font-size:12;");
-        Label l=new Label(n+" "+st);l.setFont(Font.font("Consolas",10));l.setTextFill(Color.web("#AACCEE"));
-        HBox r=new HBox(5,d,l);r.setAlignment(Pos.CENTER_LEFT);return r;
+    private HBox tRow(String n, String st) {
+        String icon, col;
+        switch (st) {
+            case "ACTIVE":  icon = "\u26A1"; col = "#44BB88"; break; // ⚡ lightning
+            case "WAITING": icon = "\u23F8"; col = "#FFD644"; break; // ⏸ pause
+            case "CRASHED": icon = "\u2716"; col = "#FF4444"; break; // ✖ cross
+            default:        icon = "\u25CF"; col = "#666666"; break;
+        }
+        Label d = new Label(icon); d.setStyle("-fx-text-fill:" + col + ";-fx-font-size:13;");
+        Label l = new Label(n + "  " + st);
+        l.setFont(Font.font("Consolas", 10));
+        l.setTextFill(Color.web("#AACCEE"));
+        HBox r = new HBox(5, d, l); r.setAlignment(Pos.CENTER_LEFT); return r;
     }
 
     public static void main(String[] args) { launch(args); }

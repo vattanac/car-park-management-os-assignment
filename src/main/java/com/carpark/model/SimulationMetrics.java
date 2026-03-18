@@ -23,6 +23,9 @@ public class SimulationMetrics {
     /** Running sum of wait-time milliseconds (for computing the average). */
     private final AtomicLong totalWaitTimeMs = new AtomicLong(0);
 
+    /** Running sum of parking-duration milliseconds. */
+    private final AtomicLong totalParkDurationMs = new AtomicLong(0);
+
     /** Timestamp (epoch ms) when the simulation started. */
     private volatile long startTimeMs;
 
@@ -51,6 +54,17 @@ public class SimulationMetrics {
         totalConsumed.incrementAndGet();
         if (waitTimeMs > 0) {
             totalWaitTimeMs.addAndGet(waitTimeMs);
+        }
+    }
+
+    /**
+     * Records the parking duration for a departed car.
+     *
+     * @param durationMs the time (in ms) the car spent parked
+     */
+    public void recordParkingDuration(long durationMs) {
+        if (durationMs > 0) {
+            totalParkDurationMs.addAndGet(durationMs);
         }
     }
 
@@ -97,6 +111,17 @@ public class SimulationMetrics {
         return (System.currentTimeMillis() - startTimeMs) / 1000.0;
     }
 
+    /**
+     * Computes the average parking duration across all consumed cars.
+     *
+     * @return average parking duration in ms, or 0 if none consumed
+     */
+    public double getAverageParkingDurationMs() {
+        int consumed = totalConsumed.get();
+        if (consumed == 0) return 0.0;
+        return totalParkDurationMs.get() / (double) consumed;
+    }
+
     // ── Reset ───────────────────────────────────────────────
 
     /**
@@ -106,6 +131,7 @@ public class SimulationMetrics {
         totalProduced.set(0);
         totalConsumed.set(0);
         totalWaitTimeMs.set(0);
+        totalParkDurationMs.set(0);
         startTimeMs = System.currentTimeMillis();
     }
 

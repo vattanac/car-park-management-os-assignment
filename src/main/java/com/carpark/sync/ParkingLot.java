@@ -94,26 +94,40 @@ public class ParkingLot {
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     public void parkCar(Car car) throws InterruptedException {
-        // Acquire an empty-slot permit (blocks if full)
+        // ┌──────────────────────────────────────────────────────────┐
+        // │  SYNCHRONIZATION: Semaphore blocks if lot is full.      │
+        // │  This is equivalent to: wait(emptySlots)                │
+        // └──────────────────────────────────────────────────────────┘
         emptySlots.acquire();
 
-        lock.lock();
+        lock.lock(); // ← Mutex: acquire exclusive access to buffer
         try {
-            // Double-check: wait while at capacity (condition variable)
+            // ╔══════════════════════════════════════════════════════╗
+            // ║       CRITICAL SECTION START — Shared Buffer        ║
+            // ║  Only one thread can modify the queue at a time.    ║
+            // ║  Protected by: ReentrantLock (mutex)                ║
+            // ║  Signaling: Condition Variable (notFull / notEmpty) ║
+            // ╚══════════════════════════════════════════════════════╝
+
+            // Condition Variable: sleep while buffer is at capacity
             while (slots.size() >= capacity) {
-                notFull.await();
+                notFull.await();  // releases lock, sleeps, re-acquires on wake
             }
 
             car.setParkedAt(Instant.now());
-            slots.add(car);
+            slots.add(car);  // ← CRITICAL: modifying shared state
 
-            // Signal consumers that a car is available
+            // Condition Variable: wake one waiting Consumer
             notEmpty.signal();
+
+            // ╔══════════════════════════════════════════════════════╗
+            // ║       CRITICAL SECTION END                          ║
+            // ╚══════════════════════════════════════════════════════╝
         } finally {
-            lock.unlock();
+            lock.unlock(); // ← Mutex: release exclusive access
         }
 
-        // Release an occupied-slot permit
+        // Signal that one more slot is now occupied
         occupiedSlots.release();
     }
 
@@ -129,26 +143,37 @@ public class ParkingLot {
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     public Car removeCar() throws InterruptedException {
-        // Acquire an occupied-slot permit (blocks if empty)
+        // ┌──────────────────────────────────────────────────────────┐
+        // │  SYNCHRONIZATION: Semaphore blocks if lot is empty.     │
+        // │  This is equivalent to: wait(occupiedSlots)             │
+        // └──────────────────────────────────────────────────────────┘
         occupiedSlots.acquire();
 
         Car car;
-        lock.lock();
+        lock.lock(); // ← Mutex: acquire exclusive access to buffer
         try {
-            // Double-check: wait while empty (condition variable)
+            // ╔══════════════════════════════════════════════════════╗
+            // ║       CRITICAL SECTION START — Shared Buffer        ║
+            // ╚══════════════════════════════════════════════════════╝
+
+            // Condition Variable: sleep while buffer is empty
             while (slots.isEmpty()) {
-                notEmpty.await();
+                notEmpty.await();  // releases lock, sleeps, re-acquires on wake
             }
 
-            car = slots.poll();
+            car = slots.poll();  // ← CRITICAL: modifying shared state
 
-            // Signal producers that space is available
+            // Condition Variable: wake one waiting Producer
             notFull.signal();
+
+            // ╔══════════════════════════════════════════════════════╗
+            // ║       CRITICAL SECTION END                          ║
+            // ╚══════════════════════════════════════════════════════╝
         } finally {
-            lock.unlock();
+            lock.unlock(); // ← Mutex: release exclusive access
         }
 
-        // Release an empty-slot permit
+        // Signal that one more slot is now empty
         emptySlots.release();
 
         return car;
