@@ -139,6 +139,28 @@ public class CarParkSimApp extends Application {
     private TextArea logArea;
     private long frameCount = 0;
 
+    // ── Live occupancy graph data ───────────────────────────
+    private static final int GRAPH_POINTS = 120; // last ~60 seconds at 2/sec
+    private final double[] graphData = new double[GRAPH_POINTS];
+    private int graphIdx = 0;
+    private Canvas graphCanvas;
+    private long lastGraphUpdate = 0;
+
+    // ── Speed multiplier ────────────────────────────────────
+    private volatile double speedMultiplier = 1.0;
+    private Label lblSpeed;
+
+    // ── Deadlock detection ──────────────────────────────────
+    private Label lblDeadlock;
+    private int deadlockCheckCounter = 0;
+    private int lastProducedCount = 0, lastConsumedCount = 0;
+    private int stuckFrames = 0;
+
+    // ── Dynamic thread counters ─────────────────────────────
+    private int producerCount = DEF_PROD;
+    private int consumerCount = DEF_CONS;
+    private Label lblProdCount, lblConsCount;
+
     // ══════════════════════════════════════════════════════════
     //  LIFECYCLE
     // ══════════════════════════════════════════════════════════
@@ -756,19 +778,96 @@ public class CarParkSimApp extends Application {
         parkingLot = new ParkingLot(cap); metrics = new SimulationMetrics();
         for (int i = 0; i < slotOwner.length; i++) slotOwner[i]=-1;
         animCars.clear(); nextAnimId = 0;
+        for (int i = 0; i < GRAPH_POINTS; i++) graphData[i] = 0;
+        graphIdx = 0; stuckFrames = 0;
+        speedMultiplier = 1.0; lblSpeed.setText("1x");
 
         producers.clear(); consumers.clear(); prodThreads.clear(); consThreads.clear();
-        for (int i=1;i<=DEF_PROD;i++){
-            CarProducer p=new CarProducer(i,parkingLot,metrics,(int)slProdR.getValue());
-            producers.add(p); Thread t=new Thread(p,"Producer-"+i); t.setDaemon(true); prodThreads.add(t);
-        }
-        for (int i=1;i<=DEF_CONS;i++){
-            ParkingGuide c=new ParkingGuide(i,parkingLot,metrics,(int)slConsR.getValue(),(int)slProcT.getValue());
-            consumers.add(c); Thread t=new Thread(c,"Guide-"+i); t.setDaemon(true); consThreads.add(t);
-        }
+        producerCount = DEF_PROD; consumerCount = DEF_CONS;
+
+        for (int i=1;i<=producerCount;i++) addProducerThread(i);
+        for (int i=1;i<=consumerCount;i++) addConsumerThread(i);
+
         prodThreads.forEach(Thread::start); consThreads.forEach(Thread::start);
         running=true; btnStart.setDisable(true); btnStop.setDisable(false);
-        log("STARTED "+DEF_PROD+"P/"+DEF_CONS+"C cap="+cap);
+        updateThreadCountLabels();
+        log("STARTED "+producerCount+"P/"+consumerCount+"C cap="+cap);
+    }
+
+    /** Creates and registers a new producer thread. */
+    private void addProducerThread(int id) {
+        CarProducer p = new CarProducer(id, parkingLot, metrics, (int)slProdR.getValue());
+        producers.add(p);
+        Thread t = new Thread(p, "Producer-" + id); t.setDaemon(true);
+        prodThreads.add(t);
+    }
+
+    /** Creates and registers a new consumer thread. */
+    private void addConsumerThread(int id) {
+        ParkingGuide c = new ParkingGuide(id, parkingLot, metrics, (int)slConsR.getValue(), (int)slProcT.getValue());
+        consumers.add(c);
+        Thread t = new Thread(c, "Guide-" + id); t.setDaemon(true);
+        consThreads.add(t);
+    }
+
+    /** Dynamically adds a producer while the simulation is running. */
+    private void addProducerLive() {
+        if (!running || parkingLot == null) return;
+        producerCount++;
+        addProducerThread(producerCount);
+        prodThreads.get(prodThreads.size() - 1).start();
+        updateThreadCountLabels();
+        log("+ Added Producer-" + producerCount);
+    }
+
+    /** Dynamically removes the last producer while running. */
+    private void removeProducerLive() {
+        if (!running || producers.size() <= 1) return;
+        CarProducer p = producers.remove(producers.size() - 1);
+        Thread t = prodThreads.remove(prodThreads.size() - 1);
+        p.stop(); t.interrupt();
+        updateThreadCountLabels();
+        log("- Removed Producer-" + (producerCount));
+        producerCount = producers.size();
+    }
+
+    /** Dynamically adds a consumer while the simulation is running. */
+    private void addConsumerLive() {
+        if (!running || parkingLot == null) return;
+        consumerCount++;
+        addConsumerThread(consumerCount);
+        consThreads.get(consThreads.size() - 1).start();
+        updateThreadCountLabels();
+        log("+ Added Guide-" + consumerCount);
+    }
+
+    /** Dynamically removes the last consumer while running. */
+    private void removeConsumerLive() {
+        if (!running || consumers.size() <= 1) return;
+        ParkingGuide c = consumers.remove(consumers.size() - 1);
+        Thread t = consThreads.remove(consThreads.size() - 1);
+        c.stop(); t.interrupt();
+        updateThreadCountLabels();
+        log("- Removed Guide-" + (consumerCount));
+        consumerCount = consumers.size();
+    }
+
+    private void updateThreadCountLabels() {
+        if (lblProdCount != null) lblProdCount.setText(producers.size() + "");
+        if (lblConsCount != null) lblConsCount.setText(consumers.size() + "");
+    }
+
+    /** Speed multiplier: adjusts all thread delays. */
+    private void setSpeed(double mult) {
+        speedMultiplier = mult;
+        lblSpeed.setText(mult + "x");
+        // Apply to all threads: divide their base delay by the multiplier
+        int pd = (int)((int)slProdR.getValue() / mult);
+        int cd = (int)((int)slConsR.getValue() / mult);
+        int pt = (int)((int)slProcT.getValue() / mult);
+        producers.forEach(p -> p.setProductionDelayMs(Math.max(50, pd)));
+        consumers.forEach(c -> { c.setConsumptionDelayMs(Math.max(50, cd)); c.setProcessingTimeMs(Math.max(50, pt)); });
+        log("Speed set to " + mult + "x");
     }
 
     private void stopSim() {
@@ -783,9 +882,13 @@ public class CarParkSimApp extends Application {
         producers.clear(); consumers.clear(); prodThreads.clear(); consThreads.clear();
         parkingLot=null; metrics=null; animCars.clear();
         for (int i=0;i<slotOwner.length;i++) slotOwner[i]=-1;
+        for (int i=0;i<GRAPH_POINTS;i++) graphData[i]=0;
+        graphIdx=0; stuckFrames=0; speedMultiplier=1.0;
         lblOcc.setText("Occupancy: 0%"); lblTp.setText("Throughput: 0.00 /s");
-        lblWt.setText("Avg Wait: 0 ms"); lblProd.setText("Produced: 0");
-        lblCons.setText("Consumed: 0"); lblElapsed.setText("Elapsed: 0.0 s");
+        lblWt.setText("Avg Wait: 0 ms"); lblParkDur.setText("Avg Park Duration: 0 ms");
+        lblProd.setText("Produced: 0"); lblCons.setText("Consumed: 0");
+        lblElapsed.setText("Elapsed: 0.0 s"); lblSpeed.setText("1x");
+        lblDeadlock.setText(""); lblDeadlock.setVisible(false);
         threadBox.getChildren().clear(); logArea.clear();
         computeSlotPositions((int)slCap.getValue());
         log("RESET");
@@ -810,10 +913,111 @@ public class CarParkSimApp extends Application {
                     lblElapsed.setText(String.format("Elapsed: %.1f s", metrics.getElapsedSeconds()));
                     tickAnimations(cap);
                     updateThreads();
+
+                    // ── Update occupancy graph (~2 updates/sec) ──
+                    if (now - lastGraphUpdate > 500_000_000L) {
+                        lastGraphUpdate = now;
+                        graphData[graphIdx % GRAPH_POINTS] = pct;
+                        graphIdx++;
+                        drawGraph();
+                    }
+
+                    // ── Deadlock detection (every ~60 frames) ──
+                    deadlockCheckCounter++;
+                    if (deadlockCheckCounter >= 60) {
+                        deadlockCheckCounter = 0;
+                        checkDeadlock();
+                    }
                 }
                 drawFrame(canvas.getGraphicsContext2D(), cap);
             }
         }.start();
+    }
+
+    /** Draws the live occupancy graph. */
+    private void drawGraph() {
+        if (graphCanvas == null) return;
+        GraphicsContext g = graphCanvas.getGraphicsContext2D();
+        double w = graphCanvas.getWidth(), h = graphCanvas.getHeight();
+
+        // Background
+        g.setFill(Color.web("#0a0e1a")); g.fillRect(0, 0, w, h);
+
+        // Grid lines
+        g.setStroke(Color.web("#1a2a44", 0.5)); g.setLineWidth(0.5);
+        for (int p = 25; p <= 75; p += 25) {
+            double y = h - (p / 100.0) * h;
+            g.strokeLine(0, y, w, y);
+        }
+        // 100% line (red)
+        g.setStroke(Color.web("#ff4444", 0.3)); g.strokeLine(0, 1, w, 1);
+
+        // Data line
+        g.setStroke(Color.web("#44aaff")); g.setLineWidth(1.5);
+        int total = Math.min(graphIdx, GRAPH_POINTS);
+        if (total < 2) return;
+
+        double xStep = w / (GRAPH_POINTS - 1);
+        g.beginPath();
+        for (int i = 0; i < total; i++) {
+            int dataIdx = (graphIdx - total + i) % GRAPH_POINTS;
+            double x = (GRAPH_POINTS - total + i) * xStep;
+            double y = h - (graphData[dataIdx] / 100.0) * h;
+            if (i == 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.stroke();
+
+        // Fill under the line
+        g.setFill(Color.web("#44aaff", 0.08));
+        // Re-trace + close
+        g.beginPath();
+        for (int i = 0; i < total; i++) {
+            int dataIdx = (graphIdx - total + i) % GRAPH_POINTS;
+            double x = (GRAPH_POINTS - total + i) * xStep;
+            double y = h - (graphData[dataIdx] / 100.0) * h;
+            if (i == 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        double lastX = (GRAPH_POINTS - 1) * xStep;
+        double firstX = (GRAPH_POINTS - total) * xStep;
+        g.lineTo(lastX, h); g.lineTo(firstX, h); g.closePath(); g.fill();
+
+        // Labels
+        g.setFill(Color.web("#556688")); g.setFont(Font.font("Consolas", 8));
+        g.setTextAlign(TextAlignment.LEFT);
+        g.fillText("100%", 2, 10); g.fillText("0%", 2, h - 2);
+    }
+
+    /** Checks for potential deadlock (no progress for several seconds). */
+    private void checkDeadlock() {
+        if (metrics == null) return;
+        int prod = metrics.getTotalProduced();
+        int cons = metrics.getTotalConsumed();
+
+        if (prod == lastProducedCount && cons == lastConsumedCount && running) {
+            stuckFrames++;
+            if (stuckFrames >= 3) { // ~6 seconds with no progress
+                // Check if all producers are WAITING and all consumers are WAITING
+                boolean allProdWaiting = producers.stream().allMatch(p -> p.getStatus() == CarProducer.Status.WAITING);
+                boolean allConsWaiting = consumers.stream().allMatch(c -> c.getStatus() == ParkingGuide.Status.WAITING);
+
+                if (allProdWaiting && allConsWaiting) {
+                    lblDeadlock.setText("\u26A0 DEADLOCK DETECTED — All threads blocked!");
+                    lblDeadlock.setVisible(true);
+                    log("\u26A0 WARNING: Possible deadlock detected!");
+                } else if (allProdWaiting) {
+                    lblDeadlock.setText("\u26A0 Producers blocked — lot is full");
+                    lblDeadlock.setVisible(true);
+                } else if (allConsWaiting) {
+                    lblDeadlock.setText("\u26A0 Consumers blocked — lot is empty");
+                    lblDeadlock.setVisible(true);
+                }
+            }
+        } else {
+            stuckFrames = 0;
+            lblDeadlock.setText(""); lblDeadlock.setVisible(false);
+        }
+        lastProducedCount = prod;
+        lastConsumedCount = cons;
     }
 
     private void updateThreads() {
@@ -868,22 +1072,83 @@ public class CarParkSimApp extends Application {
         sg.addRow(2, sL("Cons Rate"), slConsR, tfCons);
         sg.addRow(3, sL("Proc Time"), slProcT, tfProc);
 
+        // ── Deadlock warning label ──
+        lblDeadlock = new Label("");
+        lblDeadlock.setFont(Font.font("Consolas", FontWeight.BOLD, 11));
+        lblDeadlock.setTextFill(Color.web("#FF4444"));
+        lblDeadlock.setWrapText(true);
+        lblDeadlock.setVisible(false);
+
+        // ── Occupancy graph ──
+        graphCanvas = new Canvas(260, 60);
+        drawGraph(); // initial empty
+
+        // ── Speed control ──
+        lblSpeed = new Label("1x");
+        lblSpeed.setFont(Font.font("Consolas", FontWeight.BOLD, 12));
+        lblSpeed.setTextFill(Color.web("#44AAFF"));
+        Button spd1=btn("1x","#334466"); Button spd2=btn("2x","#335544");
+        Button spd4=btn("4x","#554433"); Button spd8=btn("8x","#553344");
+        spd1.setOnAction(e->setSpeed(1)); spd2.setOnAction(e->setSpeed(2));
+        spd4.setOnAction(e->setSpeed(4)); spd8.setOnAction(e->setSpeed(8));
+        HBox speedBox = new HBox(5, mkL("Speed:",11,false,"#8899AA"), spd1, spd2, spd4, spd8, lblSpeed);
+        speedBox.setAlignment(Pos.CENTER_LEFT);
+
+        // ── Dynamic thread add/remove ──
+        lblProdCount = new Label(DEF_PROD + "");
+        lblProdCount.setFont(Font.font("Consolas", FontWeight.BOLD, 12));
+        lblProdCount.setTextFill(Color.web("#FFFFFF"));
+        lblConsCount = new Label(DEF_CONS + "");
+        lblConsCount.setFont(Font.font("Consolas", FontWeight.BOLD, 12));
+        lblConsCount.setTextFill(Color.web("#FFFFFF"));
+
+        Button addP = btn("+","#44BB88"); Button remP = btn("-","#FF5555");
+        Button addC = btn("+","#44BB88"); Button remC = btn("-","#FF5555");
+        addP.setStyle(addP.getStyle() + "-fx-padding:4 10;"); remP.setStyle(remP.getStyle() + "-fx-padding:4 10;");
+        addC.setStyle(addC.getStyle() + "-fx-padding:4 10;"); remC.setStyle(remC.getStyle() + "-fx-padding:4 10;");
+        addP.setOnAction(e->addProducerLive()); remP.setOnAction(e->removeProducerLive());
+        addC.setOnAction(e->addConsumerLive()); remC.setOnAction(e->removeConsumerLive());
+
+        HBox prodRow = new HBox(5, mkL("Producers:",11,false,"#8899AA"), remP, lblProdCount, addP);
+        prodRow.setAlignment(Pos.CENTER_LEFT);
+        HBox consRow = new HBox(5, mkL("Consumers:",11,false,"#8899AA"), remC, lblConsCount, addC);
+        consRow.setAlignment(Pos.CENTER_LEFT);
+
+        // ── Start/Stop/Reset ──
         btnStart=btn("Start","#44BB88"); btnStop=btn("Stop","#FF5555"); btnReset=btn("Reset","#4488FF");
         btnStop.setDisable(true);
         btnStart.setOnAction(e->startSim()); btnStop.setOnAction(e->stopSim()); btnReset.setOnAction(e->resetSim());
         HBox bb=new HBox(8,btnStart,btnStop,btnReset); bb.setAlignment(Pos.CENTER);
 
-        logArea=new TextArea(); logArea.setEditable(false); logArea.setPrefHeight(90);
+        // ── Log ──
+        logArea=new TextArea(); logArea.setEditable(false); logArea.setPrefHeight(80);
         logArea.setFont(Font.font("Consolas",10));
         logArea.setStyle("-fx-control-inner-background:#0e0e22;-fx-text-fill:#6699bb;");
 
-        VBox p=new VBox(6, title, sub, sep(),
-            sec("DASHBOARD"), lblOcc, lblTp, lblWt, lblParkDur, sep(), lblProd, lblCons, lblElapsed, sep(),
-            sec("THREAD STATUS"), ts, sep(), sec("CONTROLS"), sg, sep(), bb, sep(),
+        // ── Assemble panel ──
+        ScrollPane panelScroll = new ScrollPane();
+        VBox panelContent = new VBox(5, title, sub, sep(),
+            sec("DASHBOARD"), lblOcc, lblTp, lblWt, lblParkDur, sep(),
+            lblProd, lblCons, lblElapsed, sep(),
+            sec("OCCUPANCY GRAPH"), graphCanvas, sep(),
+            lblDeadlock,
+            sec("THREAD STATUS"), ts, sep(),
+            sec("THREADS"), prodRow, consRow, sep(),
+            sec("SPEED"), speedBox, sep(),
+            sec("CONTROLS"), sg, sep(), bb, sep(),
             sec("EVENT LOG"), logArea);
-        p.setPadding(new Insets(14)); p.setPrefWidth(300);
-        p.setStyle("-fx-background-color:#0f1028;-fx-border-color:#1a2a44;-fx-border-width:0 0 0 1;");
-        return p;
+        panelContent.setPadding(new Insets(14));
+        panelScroll.setContent(panelContent);
+        panelScroll.setFitToWidth(true);
+        panelScroll.setPrefWidth(320);
+        panelScroll.setStyle("-fx-background:#0f1028;-fx-background-color:#0f1028;"
+            + "-fx-border-color:#1a2a44;-fx-border-width:0 0 0 1;");
+        panelScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+
+        VBox wrapper = new VBox(panelScroll);
+        wrapper.setPrefWidth(320);
+        VBox.setVgrow(panelScroll, Priority.ALWAYS);
+        return wrapper;
     }
 
     // ── Helpers ──

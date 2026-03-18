@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Car Park Management Sim — Documentation</title>
+<style>
+:root{--bg:#0B0F1A;--sidebar:#0E1225;--card:#141A2E;--card2:#1A2240;--border:#1E2A4A;--accent:#3B82F6;--accent2:#22D3EE;--accent3:#10B981;--warn:#F59E0B;--danger:#EF4444;--text:#E2E8F0;--muted:#94A3B8;--white:#FFFFFF;--font:'Segoe UI',system-ui,-apple-system,sans-serif;--mono:'Cascadia Code','Fira Code',Consolas,monospace;}
+*{margin:0;padding:0;box-sizing:border-box;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.7;display:flex;min-height:100vh}
+::selection{background:var(--accent);color:#fff}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── Sidebar ── */
+#sidebar{position:fixed;left:0;top:0;width:280px;height:100vh;background:var(--sidebar);border-right:1px solid var(--border);overflow-y:auto;z-index:100;display:flex;flex-direction:column}
+#sidebar .logo{padding:24px 20px 16px;border-bottom:1px solid var(--border)}
+#sidebar .logo h1{font-size:16px;color:var(--accent);letter-spacing:1px;font-weight:700}
+#sidebar .logo p{font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:0.5px}
+#sidebar nav{flex:1;padding:12px 0}
+#sidebar nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--muted);text-decoration:none;font-size:13px;border-left:3px solid transparent;transition:all .2s}
+#sidebar nav a:hover{color:var(--text);background:rgba(59,130,246,.06);border-left-color:var(--accent)}
+#sidebar nav a.active{color:var(--accent);background:rgba(59,130,246,.08);border-left-color:var(--accent);font-weight:600}
+#sidebar nav .section-label{padding:16px 20px 6px;font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;font-weight:700}
+#sidebar .sidebar-footer{padding:16px 20px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);line-height:1.6}
+#sidebar .sidebar-footer a{color:var(--accent);text-decoration:none}
+
+/* ── Main ── */
+#main{margin-left:280px;flex:1;padding:40px 50px 80px;max-width:920px}
+#main>section{margin-bottom:50px}
+
+/* ── Typography ── */
+h2{font-size:28px;font-weight:700;color:var(--white);margin-bottom:8px;display:flex;align-items:center;gap:12px}
+h2 .badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--accent);color:#fff;font-weight:600;letter-spacing:0.5px}
+h3{font-size:18px;font-weight:600;color:var(--accent2);margin:28px 0 10px}
+h4{font-size:15px;font-weight:600;color:var(--accent);margin:20px 0 8px}
+p{margin-bottom:14px;color:var(--text)}
+.lead{font-size:17px;color:var(--muted);margin-bottom:20px}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin:16px 0}
+.card-grid{display:grid;gap:14px;margin:16px 0}
+.card-grid.cols-2{grid-template-columns:1fr 1fr}
+.card-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+.mini-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;border-left:3px solid var(--accent)}
+.mini-card h4{margin:0 0 6px;font-size:14px}
+.mini-card p{font-size:13px;color:var(--muted);margin:0}
+.mini-card.green{border-left-color:var(--accent3)}
+.mini-card.cyan{border-left-color:var(--accent2)}
+.mini-card.yellow{border-left-color:var(--warn)}
+.mini-card.red{border-left-color:var(--danger)}
+
+/* ── Code blocks ── */
+.code-wrap{position:relative;margin:14px 0;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.code-header{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:var(--card2);border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)}
+.code-header .lang{color:var(--accent2);font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.copy-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-family:var(--font);transition:all .2s}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+.copy-btn.copied{border-color:var(--accent3);color:var(--accent3)}
+pre{background:var(--card);padding:16px;margin:0;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.6;color:#c9d1d9}
+pre .kw{color:#ff7b72}pre .str{color:#a5d6ff}pre .cmt{color:#8b949e}pre .fn{color:#d2a8ff}pre .num{color:#79c0ff}pre .ann{color:#ffa657}
+
+/* ── Tables ── */
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+th{background:var(--card2);color:var(--accent);font-weight:600;text-align:left;padding:10px 14px;border:1px solid var(--border);font-size:12px;letter-spacing:0.5px;text-transform:uppercase}
+td{padding:10px 14px;border:1px solid var(--border);color:var(--text)}
+tr:nth-child(even) td{background:rgba(20,26,46,.5)}
+
+/* ── Tags ── */
+.tag{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:0.3px}
+.tag-blue{background:rgba(59,130,246,.15);color:var(--accent)}
+.tag-cyan{background:rgba(34,211,238,.12);color:var(--accent2)}
+.tag-green{background:rgba(16,185,129,.12);color:var(--accent3)}
+.tag-yellow{background:rgba(245,158,11,.12);color:var(--warn)}
+.tag-red{background:rgba(239,68,68,.12);color:var(--danger)}
+
+/* ── List ── */
+ul{padding-left:20px;margin:10px 0}
+li{margin:6px 0;color:var(--text)}
+li::marker{color:var(--accent)}
+
+/* ── Divider ── */
+hr{border:none;border-top:1px solid var(--border);margin:30px 0}
+
+/* ── Flow diagram ── */
+.flow{display:flex;flex-direction:column;gap:6px;margin:14px 0}
+.flow-step{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--card);border-radius:6px;border-left:3px solid var(--accent);font-family:var(--mono);font-size:13px}
+.flow-step .label{color:var(--muted);font-size:12px;min-width:140px;font-family:var(--font)}
+.flow-step code{color:var(--accent2)}
+.flow-step.critical{border-left-color:var(--warn);background:var(--card2)}
+.flow-arrow{text-align:center;color:var(--muted);font-size:12px}
+
+/* ── Metric cards ── */
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;border-bottom:3px solid var(--accent)}
+.metric .num{font-size:26px;font-weight:700;color:var(--white);font-family:var(--mono)}
+.metric .lbl{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
+.metric.green{border-bottom-color:var(--accent3)}.metric.cyan{border-bottom-color:var(--accent2)}.metric.yellow{border-bottom-color:var(--warn)}
+
+/* ── Timeline ── */
+.timeline{margin:14px 0}
+.tl-item{display:flex;gap:16px;padding:12px 0;border-left:2px solid var(--border);margin-left:12px;padding-left:24px;position:relative}
+.tl-item::before{content:'';position:absolute;left:-5px;top:16px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.tl-item .step{font-weight:700;color:var(--accent);min-width:24px;font-size:18px}
+.tl-item .action{font-weight:600;color:var(--white)}
+.tl-item .result{color:var(--muted);font-size:13px}
+
+/* ── Footer ── */
+#footer{margin-left:280px;padding:30px 50px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+#footer a{color:var(--accent);text-decoration:none}
+
+@media(max-width:768px){
+  #sidebar{width:100%;height:auto;position:relative;border-right:none;border-bottom:1px solid var(--border)}
+  #main,#footer{margin-left:0}
+  body{flex-direction:column}
+  .card-grid.cols-3,.metric-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ SIDEBAR ═══════════ -->
+<div id="sidebar">
+  <div class="logo">
+    <h1>Car Park Management Sim</h1>
+    <p>Producer-Consumer Simulation</p>
+  </div>
+  <nav>
+    <div class="section-label">Getting Started</div>
+    <a href="#overview" class="active">Overview</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#setup">Setup & Run</a>
+    <div class="section-label">Core Concepts</div>
+    <a href="#synchronization">Synchronization</a>
+    <a href="#threading">Thread Safety</a>
+    <a href="#peterson">Peterson's Algorithm</a>
+    <div class="section-label">Features</div>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#features">Key Features</a>
+    <a href="#animation">Car Animation</a>
+    <div class="section-label">Reference</div>
+    <a href="#improvements">Improvements</a>
+    <a href="#files">Project Files</a>
+    <a href="#demo">Demo Guide</a>
+  </nav>
+  <div class="sidebar-footer">
+    &copy; 2026 Sim Vattanac<br>
+    <a href="mailto:vattanacsim99@gmail.com">vattanacsim99@gmail.com</a><br>
+    RUPP &mdash; Master of Data Science &amp; Engineering
+  </div>
+</div>
+
+<!-- ═══════════ MAIN CONTENT ═══════════ -->
+<div id="main">
+
+<!-- ── OVERVIEW ── -->
+<section id="overview">
+  <h2>Overview <span class="badge">v1.0</span></h2>
+  <p class="lead">A JavaFX GUI-based simulation demonstrating automated car park management using the Producer-Consumer threading pattern.</p>
+  <p>This project models a parking lot as a <strong>bounded buffer</strong> where Producer threads generate cars, Consumer threads guide them out, and the shared buffer enforces capacity constraints through thread-safe synchronization using Semaphores, Mutexes, Condition Variables, and Peterson's Algorithm.</p>
+
+  <div class="card-grid cols-3">
+    <div class="mini-card"><h4>Producers</h4><p>Generate cars at configurable rates, simulating arrivals at the parking gate</p></div>
+    <div class="mini-card cyan"><h4>Buffer (Lot)</h4><p>Fixed-size bounded buffer protected by Semaphores, Mutex, and Condition Variables</p></div>
+    <div class="mini-card green"><h4>Consumers</h4><p>Parking guides remove cars, simulate processing work, and release spaces</p></div>
+  </div>
+
+  <p>Built for the <strong>Operating System</strong> course &mdash; Royal University of Phnom Penh, Faculty of Engineering, Department of IT Engineering.</p>
+</section>
+
+<hr>
+
+<!-- ── ARCHITECTURE ── -->
+<section id="architecture">
+  <h2>Architecture</h2>
+  <p>The project follows a clean, modular design with four packages:</p>
+
+  <div class="code-wrap">
+    <div class="code-header"><span class="lang">Project Structure</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre>com.carpark
+├── model/
+│   ├── Car.java                 <span class="cmt">// Vehicle entity with timestamps</span>
+│   └── SimulationMetrics.java   <span class="cmt">// Thread-safe stats (AtomicInteger/Long)</span>
+├── sync/
+│   ├── ParkingLot.java          <span class="cmt">// Bounded buffer (Semaphore + Lock + Condition)</span>
+│   └── PetersonLock.java        <span class="cmt">// Peterson's mutual exclusion algorithm</span>
+├── thread/
+│   ├── CarProducer.java         <span class="cmt">// Producer thread (generates cars)</span>
+│   └── ParkingGuide.java        <span class="cmt">// Consumer thread (guides cars out)</span>
+└── ui/
+    └── CarParkSimApp.java       <span class="cmt">// JavaFX GUI with isometric rendering</span></pre>
+  </div>
+
+  <table>
+    <tr><th>Package</th><th>Classes</th><th>Responsibility</th></tr>
+    <tr><td><code>com.carpark.model</code></td><td>Car, SimulationMetrics</td><td>Domain entities and thread-safe statistics</td></tr>
+    <tr><td><code>com.carpark.sync</code></td><td>ParkingLot, PetersonLock</td><td>Synchronization primitives and bounded buffer</td></tr>
+    <tr><td><code>com.carpark.thread</code></td><td>CarProducer, ParkingGuide</td><td>Producer and Consumer thread implementations</td></tr>
+    <tr><td><code>com.carpark.ui</code></td><td>CarParkSimApp</td><td>JavaFX GUI, isometric renderer, animation engine</td></tr>
+  </table>
+</section>
+
+<hr>
+
+<!-- ── SETUP ── -->
+<section id="setup">
+  <h2>Setup &amp; Run</h2>
+  <h3>Prerequisites</h3>
+  <ul>
+    <li><strong>JDK 17+</strong> (tested with JDK 17 and 21)</li>
+    <li><strong>Maven 3.8+</strong></li>
+  </ul>
+
+  <h3>Build &amp; Run</h3>
+  <div class="code-wrap">
+    <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="kw">cd</span> CarParkManagementSim
+mvn javafx:run</pre>
+  </div>
+  <p>The application starts <strong>maximized</strong> and the canvas auto-resizes to fill available space.</p>
+</section>
+
+<hr>
+
+<!-- ── SYNCHRONIZATION ── -->
+<section id="synchronization">
+  <h2>Synchronization Strategy</h2>
+
+  <h3>Producer Flow (parkCar)</h3>
+  <div class="flow">
+    <div class="flow-step"><span class="label">Semaphore</span><code>emptySlots.acquire()</code> &mdash; Block if lot full</div>
+    <div class="flow-arrow">&darr;</div>
+    <div class="flow-step"><span class="label">Mutex</span><code>lock.lock()</code> &mdash; Enter critical section</div>
+    <div class="flow-arrow">&darr;</div>
+    <div class="flow-step critical"><span class="label">Critical Section</span><code>while(full) notFull.await()</code></div>
+    <div class="flow-arrow">&darr;</div>
+    <div class="flow-step critical"><span class="label">Shared State</span><code>queue.add(car)</code></div>
+    <div class="flow-arrow">&darr;</div>
+    <div class="flow-step critical"><span class="label">Condition</span><code>notEmpty.signal()</code> &mdash; Wake consumer</div>
+    <div class="flow-arrow">&darr;</div>
+    <div class="flow-step"><span class="label">Mutex</span><code>lock.unlock()</code> &mdash; Exit critical section</div>
+    <div class="flow-arrow">&darr;</div>
+    <div class="flow-step"><span class="label">Semaphore</span><code>occupiedSlots.release()</code> &mdash; Signal occupied</div>
+  </div>
+
+  <h3>Consumer Flow (removeCar)</h3>
+  <div class="code-wrap">
+    <div class="code-header"><span class="lang">Java</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="cmt">// 1. Semaphore: wait for a parked car</span>
+occupiedSlots.<span class="fn">acquire</span>();
+
+lock.<span class="fn">lock</span>();  <span class="cmt">// 2. Mutex: enter critical section</span>
+<span class="kw">try</span> {
+    <span class="kw">while</span> (slots.<span class="fn">isEmpty</span>()) {
+        notEmpty.<span class="fn">await</span>();  <span class="cmt">// 3. Condition: sleep until car arrives</span>
+    }
+    car = slots.<span class="fn">poll</span>();   <span class="cmt">// 4. Modify shared state</span>
+    notFull.<span class="fn">signal</span>();     <span class="cmt">// 5. Wake a blocked producer</span>
+} <span class="kw">finally</span> {
+    lock.<span class="fn">unlock</span>();       <span class="cmt">// 6. Exit critical section</span>
+}
+
+emptySlots.<span class="fn">release</span>(); <span class="cmt">// 7. Signal a slot is free</span></pre>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── THREADING ── -->
+<section id="threading">
+  <h2>Thread Safety Mechanisms</h2>
+  <table>
+    <tr><th>Mechanism</th><th>Location</th><th>Purpose</th></tr>
+    <tr><td><span class="tag tag-blue">Semaphore</span></td><td>ParkingLot</td><td>Counting permits for empty/occupied slots</td></tr>
+    <tr><td><span class="tag tag-yellow">ReentrantLock</span></td><td>ParkingLot</td><td>Mutex protecting the shared queue</td></tr>
+    <tr><td><span class="tag tag-cyan">Condition</span></td><td>ParkingLot</td><td>Sleep/wake signaling between threads</td></tr>
+    <tr><td><span class="tag tag-green">volatile</span></td><td>CarProducer, ParkingGuide</td><td>Thread-safe field visibility</td></tr>
+    <tr><td><span class="tag tag-blue">AtomicInteger/Long</span></td><td>SimulationMetrics</td><td>Lock-free counter updates</td></tr>
+    <tr><td><span class="tag tag-green">PetersonLock</span></td><td>PetersonLock</td><td>Classical 2-process mutual exclusion</td></tr>
+  </table>
+</section>
+
+<hr>
+
+<!-- ── PETERSON ── -->
+<section id="peterson">
+  <h2>Peterson's Algorithm</h2>
+  <p>Classical two-process mutual exclusion using only volatile flags and a turn variable. Guarantees mutual exclusion, progress, and bounded waiting without hardware atomics.</p>
+
+  <div class="code-wrap">
+    <div class="code-header"><span class="lang">Java</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="kw">public void</span> <span class="fn">lock</span>(<span class="kw">int</span> threadId) {
+    <span class="kw">int</span> other = <span class="num">1</span> - threadId;
+
+    flag[threadId] = <span class="kw">true</span>;   <span class="cmt">// I want to enter</span>
+    turn = other;            <span class="cmt">// But I'll let you go first</span>
+
+    <span class="cmt">// Busy-wait: only enters when other doesn't want it</span>
+    <span class="cmt">// OR it's my turn</span>
+    <span class="kw">while</span> (flag[other] && turn == other) {
+        Thread.<span class="fn">yield</span>();
+    }
+    <span class="cmt">// ═══ CRITICAL SECTION BEGINS ═══</span>
+}
+
+<span class="kw">public void</span> <span class="fn">unlock</span>(<span class="kw">int</span> threadId) {
+    flag[threadId] = <span class="kw">false</span>;  <span class="cmt">// I'm done</span>
+    <span class="cmt">// ═══ CRITICAL SECTION ENDS ═══</span>
+}</pre>
+  </div>
+
+  <div class="card-grid cols-3">
+    <div class="mini-card green"><h4>Mutual Exclusion</h4><p>Only one thread in the critical section at a time</p></div>
+    <div class="mini-card cyan"><h4>Progress</h4><p>If no thread is inside, one can always enter</p></div>
+    <div class="mini-card yellow"><h4>Bounded Waiting</h4><p>A waiting thread will eventually get access</p></div>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── DASHBOARD ── -->
+<section id="dashboard">
+  <h2>Visual Dashboard</h2>
+
+  <div class="metric-grid">
+    <div class="metric green"><div class="num">70%</div><div class="lbl">Occupancy</div></div>
+    <div class="metric"><div class="num">1.09/s</div><div class="lbl">Throughput</div></div>
+    <div class="metric cyan"><div class="num">800ms</div><div class="lbl">Avg Wait</div></div>
+    <div class="metric yellow"><div class="num">1.2s</div><div class="lbl">Park Duration</div></div>
+  </div>
+
+  <h3>Thread Status Icons</h3>
+  <div class="card">
+    <p style="font-family:var(--mono);font-size:14px">
+      <span style="color:var(--accent3)">&#x26A1; Active</span> &mdash; Thread is running<br>
+      <span style="color:var(--warn)">&#x23F8; Waiting</span> &mdash; Blocked on semaphore/condition<br>
+      <span style="color:var(--danger)">&#x2716; Crashed</span> &mdash; Thread encountered an exception
+    </p>
+  </div>
+
+  <h3>Real-Time Controls</h3>
+  <table>
+    <tr><th>Control</th><th>Range</th><th>Effect</th></tr>
+    <tr><td>Buffer Capacity</td><td>1 &ndash; 18</td><td>Number of parking spaces</td></tr>
+    <tr><td>Production Rate</td><td>200 &ndash; 5000 ms</td><td>Delay between car arrivals</td></tr>
+    <tr><td>Consumption Rate</td><td>200 &ndash; 5000 ms</td><td>Delay between car departures</td></tr>
+    <tr><td>Processing Time</td><td>100 &ndash; 5000 ms</td><td>Simulated work time per car</td></tr>
+  </table>
+  <p>Each control has both a <strong>slider</strong> and an <strong>editable text field</strong> for precise input.</p>
+</section>
+
+<hr>
+
+<!-- ── FEATURES ── -->
+<section id="features">
+  <h2>Key Features</h2>
+
+  <div class="card-grid cols-2">
+    <div class="mini-card"><h4>Live Occupancy Graph</h4><p>Real-time line chart tracking occupancy % over the last 60 seconds with gradient fill and red 100% threshold</p></div>
+    <div class="mini-card green"><h4>Dynamic Thread Management</h4><p>Add/remove Producers and Consumers at runtime using + and &minus; buttons</p></div>
+    <div class="mini-card red"><h4>Deadlock Detection</h4><p>Auto-detects blocked threads and shows context-aware warnings (full deadlock vs partial blocks)</p></div>
+    <div class="mini-card yellow"><h4>Speed Control (1x/2x/4x/8x)</h4><p>Speed multiplier buttons to fast-forward the simulation during presentations</p></div>
+    <div class="mini-card cyan"><h4>Isometric Nighttime Scene</h4><p>Dark sky, twinkling stars, moon, building, street lamps, trees, road with markings</p></div>
+    <div class="mini-card"><h4>Modern Car Design</h4><p>Multi-part bodies with windshields, LED headlights, DRL strips, tail light bars, side mirrors, grilles</p></div>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── ANIMATION ── -->
+<section id="animation">
+  <h2>Car Driving Animation</h2>
+  <p>Cars go through a full lifecycle with smooth driving animations:</p>
+
+  <div class="card">
+    <h4 style="color:var(--accent3)">Drive In</h4>
+    <p>Car appears on the road, drives to the lot entrance (Phase 1 with smoothstep easing), then turns and slides into its assigned slot (Phase 2 with bounce).</p>
+    <h4 style="color:var(--warn);margin-top:14px">Queue When Full</h4>
+    <p>When the lot is full, new cars queue visibly on the road with headlights on and a "X waiting" counter displayed.</p>
+    <h4 style="color:var(--danger);margin-top:14px">Drive Out</h4>
+    <p>When consumed, the car drives from its slot to the lot entrance, then continues down the road and off-screen.</p>
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-header"><span class="lang">Java — Smoothstep Easing</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="cmt">// Two-phase animation with Hermite interpolation</span>
+<span class="kw">if</span> (progress < <span class="num">0.4</span>) {
+    <span class="cmt">// Phase 1: Road → Lot entrance</span>
+    <span class="kw">double</span> t = progress / <span class="num">0.4</span>;
+    <span class="kw">double</span> ease = t * t * (<span class="num">3</span> - <span class="num">2</span> * t);  <span class="cmt">// smoothstep</span>
+    car.wz = <span class="fn">lerp</span>(startZ, lotEntrance, ease);
+} <span class="kw">else</span> {
+    <span class="cmt">// Phase 2: Lot entrance → Parking slot</span>
+    <span class="kw">double</span> t = (progress - <span class="num">0.4</span>) / <span class="num">0.6</span>;
+    <span class="kw">double</span> ease = t * t * (<span class="num">3</span> - <span class="num">2</span> * t);
+    car.wx = <span class="fn">lerp</span>(roadX, slotX, ease);
+    car.wy = Math.<span class="fn">sin</span>(t * Math.PI) * <span class="num">0.1</span>;  <span class="cmt">// bounce</span>
+}</pre>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── IMPROVEMENTS ── -->
+<section id="improvements">
+  <h2>Improvements Made</h2>
+
+  <div class="card-grid cols-2">
+    <div class="mini-card"><h4>01 &mdash; Peterson's Algorithm</h4><p>Classical mutual exclusion implementation <span class="tag tag-blue">Sync 15%</span></p></div>
+    <div class="mini-card"><h4>02 &mdash; Critical Section Marking</h4><p>Explicit annotated comment blocks <span class="tag tag-blue">Sync 15%</span></p></div>
+    <div class="mini-card cyan"><h4>03 &mdash; Car Lifecycle Logging</h4><p>Per-car park/depart event log <span class="tag tag-cyan">Func 40%</span></p></div>
+    <div class="mini-card cyan"><h4>04 &mdash; Parking Duration Metric</h4><p>Full lifecycle tracking <span class="tag tag-cyan">Func 40%</span></p></div>
+    <div class="mini-card green"><h4>05 &mdash; Package Documentation</h4><p>Javadoc for all 4 packages <span class="tag tag-green">Quality 10%</span></p></div>
+    <div class="mini-card green"><h4>06 &mdash; Thread Status Icons</h4><p>Distinct Unicode icons <span class="tag tag-green">Quality 10%</span></p></div>
+    <div class="mini-card yellow"><h4>07 &mdash; Live Occupancy Graph</h4><p>Real-time 60-second chart <span class="tag tag-yellow">Advanced</span></p></div>
+    <div class="mini-card yellow"><h4>08 &mdash; Dynamic Threads</h4><p>Runtime add/remove <span class="tag tag-yellow">Advanced</span></p></div>
+    <div class="mini-card red"><h4>09 &mdash; Deadlock Detection</h4><p>Automatic stall monitoring <span class="tag tag-red">Advanced</span></p></div>
+    <div class="mini-card"><h4>10 &mdash; Speed Control</h4><p>1x / 2x / 4x / 8x multiplier <span class="tag tag-yellow">Advanced</span></p></div>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── FILES ── -->
+<section id="files">
+  <h2>Project Files</h2>
+  <table>
+    <tr><th>File</th><th>Lines</th><th>Purpose</th></tr>
+    <tr><td><code>Car.java</code></td><td>154</td><td>Vehicle model: ID, plate, timestamps, wait/duration</td></tr>
+    <tr><td><code>SimulationMetrics.java</code></td><td>145</td><td>Thread-safe stats: AtomicInteger/Long</td></tr>
+    <tr><td><code>ParkingLot.java</code></td><td>257</td><td>Bounded buffer: Semaphore + Lock + Condition</td></tr>
+    <tr><td><code>PetersonLock.java</code></td><td>149</td><td>Peterson's 2-process mutual exclusion</td></tr>
+    <tr><td><code>CarProducer.java</code></td><td>141</td><td>Producer thread with configurable rate</td></tr>
+    <tr><td><code>ParkingGuide.java</code></td><td>167</td><td>Consumer thread with processing time</td></tr>
+    <tr><td><code>CarParkSimApp.java</code></td><td>~940</td><td>JavaFX GUI, isometric renderer, dashboard, graph, deadlock</td></tr>
+    <tr><td><code>package-info.java</code> &times;4</td><td>~80</td><td>Package-level architectural documentation</td></tr>
+    <tr><td><code>module-info.java</code></td><td>12</td><td>Java module descriptor</td></tr>
+    <tr><td><code>pom.xml</code></td><td>89</td><td>Maven build with JavaFX 21</td></tr>
+  </table>
+</section>
+
+<hr>
+
+<!-- ── DEMO ── -->
+<section id="demo">
+  <h2>Demo Guide</h2>
+  <p>Follow these steps for a compelling presentation:</p>
+
+  <div class="timeline">
+    <div class="tl-item"><div><span class="step">1</span></div><div><div class="action">Click Start</div><div class="result">Watch cars drive in from the road and park in slots</div></div></div>
+    <div class="tl-item"><div><span class="step">2</span></div><div><div class="action">Set Capacity = 5, Prod Rate = 500ms</div><div class="result">Queue builds up visibly on the road</div></div></div>
+    <div class="tl-item"><div><span class="step">3</span></div><div><div class="action">Click + on Producers</div><div class="result">4th producer floods the lot faster, queue grows</div></div></div>
+    <div class="tl-item"><div><span class="step">4</span></div><div><div class="action">Switch to 4x or 8x speed</div><div class="result">Fast-forward to demonstrate steady-state</div></div></div>
+    <div class="tl-item"><div><span class="step">5</span></div><div><div class="action">Click + on Consumers twice</div><div class="result">Lot drains, occupancy graph drops</div></div></div>
+    <div class="tl-item"><div><span class="step">6</span></div><div><div class="action">Remove all but 1 Consumer</div><div class="result">Deadlock warning appears after ~6 seconds</div></div></div>
+    <div class="tl-item"><div><span class="step">7</span></div><div><div class="action">Click Stop &amp; Reset</div><div class="result">Clean restart for the next scenario</div></div></div>
+  </div>
+</section>
+
+</div>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<div id="footer">
+  <span>&copy; 2026 Sim Vattanac &mdash; All rights reserved</span>
+  <span>Contact: <a href="mailto:vattanacsim99@gmail.com">vattanacsim99@gmail.com</a></span>
+  <span>RUPP &mdash; Master of Data Science &amp; Engineering</span>
+</div>
+
+<!-- ═══════════ SCRIPTS ═══════════ -->
+<script>
+// Copy code to clipboard
+function copyCode(btn) {
+  const pre = btn.closest('.code-wrap').querySelector('pre');
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// Active sidebar link on scroll
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('#sidebar nav a');
+
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.remove('active');
+    if (a.getAttribute('href') === '#' + current) a.classList.add('active');
+  });
+});
+</script>
+
+</body>
+</html>
