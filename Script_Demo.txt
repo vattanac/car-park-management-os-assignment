@@ -1,0 +1,49 @@
+CAR PARK MANAGEMENT SIM — DEMO WALKTHROUGH VIDEO SCRIPT
+=========================================================
+Final Project Assignment | Operating System Course
+Royal University of Phnom Penh | Author: Vattanac
+=========================================================
+
+--- INTRO ---
+
+Hey everyone! Welcome to the live demo of Car Park Management Sim. I'm going to walk you through exactly how this simulation works — from starting it up, to watching cars flow in and out, to pushing it to its limits with deadlock scenarios. Let's jump right in!
+
+
+--- STEP 1: Starting the Simulation ---
+
+Here's the application when it first launches. You can see the isometric parking lot scene — it's a nighttime setting with street lamps, a building with glowing windows, twinkling stars, and a moon in the sky. On the right side, you have the full control dashboard. Right now everything is idle. Let me click the Start button — and immediately you'll see cars begin appearing on the road, driving into the lot, and parking in their assigned slots. Each car is animated with smooth movement and a little bounce when it parks. The dashboard instantly starts updating — occupancy climbs, throughput ticks up, and each thread shows its status.
+
+
+--- STEP 2: Understanding the Flow ---
+
+Watch what's happening here. The producers — our car generators — are creating vehicles at the rate we set. Right now it's one car every 1000 milliseconds. Each car drives in from the road on the left side, enters the lot, and parks. Meanwhile, the consumers — the parking guides — are removing parked cars after a processing time. You can see the cars drive back out to the right. The occupancy percentage goes up when producers are faster, and comes down when consumers catch up. This is the Producer-Consumer pattern in action — right in front of your eyes.
+
+
+--- STEP 3: Adjusting the Controls ---
+
+Now let's play with the controls. I'll set the buffer capacity down to 5 — that means only 5 cars can park at once. And I'll crank the production rate to 500 milliseconds — so cars arrive twice as fast. Watch what happens — the lot fills up quickly, and now you can see cars lining up on the road! That queue is the bounded buffer at work — the semaphore is blocking producers because there's no space. The producer threads show WAITING status. Now I'll slow down production back to 2000 milliseconds and watch the queue drain.
+
+
+--- STEP 4: Dynamic Thread Management ---
+
+Here's a powerful feature — I can add or remove threads at runtime. Let me click the plus button on producers to add a 4th producer. Boom — cars are arriving from four sources now, the lot fills up even faster. Now let me add two more consumers — watch the occupancy drop as more guides process cars. I can also remove threads — let me take away two producers. The system adapts instantly. This demonstrates dynamic resource allocation — something real operating systems do all the time.
+
+
+--- STEP 5: Speed Control ---
+
+Let me switch to 4x speed so we can see the long-term behavior faster. Everything moves four times quicker — cars zip in and out, the graph updates rapidly. You can see the occupancy graph settling into a steady-state pattern — this proves the system is balanced. At 8x speed it's even faster — great for demos when you want to show the overall behavior without waiting. I'll switch back to 1x for the next part.
+
+
+--- STEP 6: Deadlock Detection ---
+
+Now I'm going to intentionally create a problem. I'll set the lot capacity to 3, production rate very fast at 300 milliseconds, and then remove all consumers except one. And I'll set that consumer's processing time to 5000 milliseconds — very slow. Watch — the lot fills up instantly. All producers show WAITING. The single consumer can barely keep up. And there it is — the deadlock detection warning appears! The system detected that no progress is being made. In a real OS, this kind of monitoring prevents the system from hanging silently.
+
+
+--- STEP 7: The Live Graph ---
+
+Take a look at the occupancy graph at the bottom of the dashboard. It's been tracking the last 60 seconds of activity. You can see the spikes when we added producers, the dips when we added consumers, and the flat line when deadlock hit. This graph tells the whole story of how your system performed over time — it's one of my favorite features because it makes the abstract concept of resource utilization completely visible.
+
+
+--- STEP 8: Reset and Wrap Up ---
+
+Finally, let me click Stop — all threads shut down cleanly. Click Reset — everything goes back to zero. The simulation is ready for a fresh run. And that's the full demo of Car Park Management Sim! You've seen the Producer-Consumer pattern, semaphore blocking, dynamic thread management, speed control, deadlock detection, and real-time metrics — all in one interactive simulation. Thanks for watching!

@@ -1,0 +1,54 @@
+CAR PARK MANAGEMENT SIM — PRESENTATION VIDEO SCRIPT
+=====================================================
+Final Project Assignment | Operating System Course
+Royal University of Phnom Penh | Author: Vattanac
+=====================================================
+
+--- SLIDE 1: Title & Introduction ---
+
+Hi everyone! My name is Vattanac, a student at the Royal University of Phnom Penh. Today, I'm excited to present my final project for the Operating System course — it's called Car Park Management Sim. This is a real-time, multi-threaded parking lot simulation built entirely in Java with JavaFX. The goal? To bring the famous Producer-Consumer problem to life — not just as theory on paper, but as a fully interactive, visually rich simulation that you can actually see, control, and experiment with.
+
+
+--- SLIDE 2: Problem Statement & Motivation ---
+
+So why a parking lot? Think about it — a parking lot is the perfect real-world analogy for the Producer-Consumer problem. Cars arrive and need a space — that's the producer. A parking guide processes and releases cars — that's the consumer. The lot itself has limited capacity — that's our bounded buffer. If the lot is full, new cars have to wait. If the lot is empty, the guide has nothing to do. This is exactly how operating systems manage shared resources between threads. My goal was to make these abstract concepts visible and interactive, so anyone can understand how threading and synchronization actually work.
+
+
+--- SLIDE 3: System Architecture ---
+
+The project is cleanly organized into four packages. First, com.carpark.model — this holds the Car entity and SimulationMetrics, our domain objects with thread-safe statistics. Second, com.carpark.sync — this is the heart of the system, containing the ParkingLot bounded buffer and a PetersonLock for classical mutual exclusion. Third, com.carpark.thread — here we have CarProducer and ParkingGuide, the actual Runnable classes that run on separate threads. And finally, com.carpark.ui — the main JavaFX application with an isometric renderer, animated cars, and a full real-time dashboard. Every package is fully documented with Javadoc.
+
+
+--- SLIDE 4: Synchronization Deep Dive ---
+
+Now let's talk about the most important part — how threads stay synchronized without crashing into each other. I use a dual-semaphore pattern. The emptySlots semaphore blocks producers when the parking lot is full. The occupiedSlots semaphore blocks consumers when the lot is empty. Inside, a ReentrantLock protects the critical section — the actual moment we add or remove a car from the shared queue. Condition Variables — notFull and notEmpty — handle the wake-up signaling between threads. On top of that, I also implemented Peterson's Algorithm — a classical two-process mutual exclusion technique that uses only volatile boolean flags and a turn variable. No hardware atomics. It guarantees mutual exclusion, progress, and bounded waiting — all three properties proven in operating system theory.
+
+
+--- SLIDE 5: Thread Safety Mechanisms ---
+
+Thread safety isn't just one tool — it's a combination of techniques working together. Semaphores count available permits. The ReentrantLock acts as a mutex guarding the critical section. Condition Variables let threads sleep efficiently instead of busy-waiting. Volatile fields ensure that when one thread updates a value like production rate or status, every other thread sees that change immediately. And AtomicInteger and AtomicLong give us lock-free counter updates for metrics like total cars produced, total consumed, and cumulative wait times. Every layer has a purpose, and together they make the simulation rock-solid.
+
+
+--- SLIDE 6: Key Features ---
+
+What makes Car Park Management Sim stand out? First — a live occupancy graph that charts the lot's fill percentage over the last 60 seconds in real time. Second — you can dynamically add or remove producer and consumer threads while the simulation is running. Third — automatic deadlock detection that monitors thread progress and warns you if all threads are stuck. Fourth — speed control at 1x, 2x, 4x, and 8x so you can fast-forward through scenarios. Fifth — a complete dashboard showing occupancy, throughput, average wait time, parking duration, and individual thread status. And sixth — a beautiful isometric nighttime scene with animated cars driving in and out, street lamps, stars, and a glowing moon.
+
+
+--- SLIDE 7: Visual Dashboard ---
+
+Let me walk you through the dashboard. At the top, occupancy is shown as a percentage with color coding — green when low, yellow at medium, red when nearly full. Next to it, throughput shows how many cars are processed per second. Average wait time and parking duration track each car's full lifecycle from creation to departure. Below that, every thread is listed with a status icon — a lightning bolt for active, a pause icon for waiting, and an X if crashed. On the control panel, you can adjust buffer capacity from 1 to 18 slots, production rate, consumption rate, and processing time — each with both a slider and an editable text field so you get precise control. Plus speed multiplier buttons to fast-forward the entire simulation.
+
+
+--- SLIDE 8: Improvements Beyond Requirements ---
+
+I didn't stop at the basic requirements. I added Peterson's Algorithm with full Javadoc explaining mutual exclusion, progress, and bounded waiting guarantees. I marked every critical section in the code with explicit comments. I built car lifecycle logging so every park and depart event is tracked. I added parking duration as a metric for complete lifecycle analysis. Every package has Javadoc documentation. And for advanced features — the live graph, dynamic thread management, and deadlock detection go well beyond what was required. These show a deeper understanding of real operating system challenges.
+
+
+--- SLIDE 9: What I Learned ---
+
+Building this project taught me so much more than reading a textbook ever could. I learned how threads actually compete for shared resources — and how easily things break without proper synchronization. I experienced deadlocks firsthand and learned to detect them. I understood why semaphores, mutexes, and condition variables exist — not as abstract concepts, but as essential tools. And I discovered that good visualization makes complex systems understandable. If you can see it, you can understand it.
+
+
+--- SLIDE 10: Thank You ---
+
+That wraps up my presentation on Car Park Management Sim. I hope this gave you a clear picture of how the Producer-Consumer pattern works in practice — from the synchronization strategy all the way to the visual simulation. Thank you so much for watching, and I'd be happy to answer any questions!

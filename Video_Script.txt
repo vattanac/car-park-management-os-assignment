@@ -1,0 +1,51 @@
+Car Park Management Sim — Video Presentation Script
+====================================================
+
+--- SLIDE 1: Title ---
+
+Hi everyone. My name is Vattanac, a student at the Royal University of Phnom Penh. Today I'll be presenting my Operating System programming assignment: the Car Park Management Sim — a producer-consumer threading simulation built with Java and JavaFX.
+
+
+--- SLIDE 2: Project Overview ---
+
+So what is this project about? It models a real-world parking lot using the classic Producer-Consumer pattern. Producers are car generators — they create cars at a configurable rate, simulating vehicles arriving at the parking gate. The parking lot itself is a bounded buffer with a fixed capacity, protected by Semaphores, a Mutex, and Condition Variables. On the other side, Consumers act as parking guides — they remove cars from the lot, simulate some processing work, and release spaces for new cars. Through this simulation, we demonstrate real operating system concepts like multi-threading, critical sections, deadlock detection, and dynamic resource management.
+
+
+--- SLIDE 3: System Architecture ---
+
+The project is organized into four packages. First, com.carpark.model contains the Car entity and SimulationMetrics — these are our domain objects and thread-safe statistics. Second, com.carpark.sync holds the ParkingLot class, which is our bounded buffer implementation, and PetersonLock, which demonstrates classical mutual exclusion. Third, com.carpark.thread has CarProducer and ParkingGuide — these are the actual producer and consumer Runnable classes that run on separate threads. Finally, com.carpark.ui contains the main JavaFX application with the isometric renderer and the dashboard.
+
+
+--- SLIDE 4: Synchronization Strategy ---
+
+This is the core of the project — the synchronization strategy. The primary approach uses a dual-semaphore pattern. When a producer wants to park a car, it first acquires from the emptySlots semaphore — this blocks the thread if the lot is full. Then it locks a ReentrantLock to enter the critical section, adds the car to the shared queue, signals notEmpty to wake up any waiting consumer, unlocks, and finally releases the occupiedSlots semaphore. This ensures thread safety at every step. Additionally, I implemented Peterson's Algorithm as a secondary demonstration. It's a classical two-process mutual exclusion technique using only volatile boolean flags and a turn variable — no hardware-level atomic operations needed. It guarantees mutual exclusion, progress, and bounded waiting.
+
+
+--- SLIDE 5: Thread Safety Mechanisms ---
+
+The project uses multiple thread safety mechanisms working together. Semaphores handle counting permits — controlling how many cars can enter or be removed. ReentrantLock acts as a mutex protecting the critical section where we modify shared state. Condition Variables handle sleep and wake signaling between threads. Volatile fields ensure visibility of status changes and rate updates across threads. And AtomicInteger and AtomicLong provide lock-free counter updates for metrics like total produced, total consumed, and cumulative wait times.
+
+
+--- SLIDE 6: Key Features ---
+
+Beyond the core threading, the simulation includes several advanced features. There's a live occupancy graph that tracks the lot's occupancy percentage over the last 60 seconds in real time. You can dynamically add or remove producer and consumer threads while the simulation is running. There's automatic deadlock detection that warns you when all threads are blocked with no progress. A speed control lets you fast-forward at 1x, 2x, 4x, or 8x speed. The dashboard shows real-time metrics like occupancy, throughput, average wait time, and parking duration. And visually, everything is rendered as an isometric nighttime scene with animated cars driving in and out of the lot.
+
+
+--- SLIDE 7: Visual Dashboard ---
+
+Here's what the dashboard looks like. At the top, you see color-coded occupancy — green when low, yellow at medium, and red when the lot is nearly full. Throughput shows cars processed per second. Average wait time and parking duration track the full car lifecycle. Below that, each thread's status is displayed with icons — a lightning bolt for active, a pause icon for waiting, and an X for crashed. On the control panel, users can adjust buffer capacity from 1 to 18 slots, production and consumption rates, processing time, and the speed multiplier — all with both sliders and editable text fields for precise input.
+
+
+--- SLIDE 8: Improvements Made ---
+
+To make this project stand out, I made several improvements beyond the basic requirements. I added Peterson's Algorithm and explicit critical section comments in the code to satisfy the synchronization rubric. Car lifecycle logging and parking duration metrics cover the functionality requirements. Package-level Javadoc documentation improves code quality. And for advanced features, I added the live occupancy graph, dynamic thread management, and automatic deadlock detection — these go beyond what was required and demonstrate deeper understanding of OS concepts.
+
+
+--- SLIDE 9: Live Demo Guide ---
+
+Now let me walk you through a demo. First, click Start — you'll see cars driving in from the road and parking in the lot. Then set the capacity to 5 and production rate to 500 milliseconds — you'll see a queue building up on the road as the lot fills up. Click the plus button to add a 4th producer — this floods the lot even faster. Switch to 4x speed to fast-forward and see the system reach steady state. Then add two more consumers — the lot drains and the graph drops. If you remove all but one consumer, the deadlock detection warning will appear. Finally, click Stop and Reset for a clean restart.
+
+
+--- SLIDE 10: Thank You ---
+
+That concludes my presentation on the Car Park Management Sim. Thank you for watching, and I'm happy to answer any questions.
